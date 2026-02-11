@@ -135,4 +135,10 @@ MIT License - see LICENSE file for details.
 
 ---
 
+## ☁️ Deployment
+
+For detailed instructions on deploying the Frontend to Vercel and Backend to Render/VPS, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
+---
+
 **Built for Kaspathon 2026 🏆**
