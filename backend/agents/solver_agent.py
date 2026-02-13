@@ -70,7 +70,10 @@ class SolverAgent(BaseAgent):
         reward = message.data.get("reward", 0)
         deadline = message.data.get("deadline", 0)
         
-        # Store task info
+        # Store task info if not already known
+        if task_id in self.available_tasks:
+            return
+            
         self.available_tasks[task_id] = {
             "reward": reward,
             "description": message.data.get("description", ""),
@@ -111,9 +114,10 @@ class SolverAgent(BaseAgent):
         
         print(f"🎯 {self.state.agent_id} bid {bid_amount} sompi on task {task_id}")
         
-        # Mark as active and assigned (in real system would wait for confirmation)
-        self.state.active_tasks.append(task_id)
-        self.assigned_tasks[task_id] = self.available_tasks[task_id]
+        # Mark as active and assigned (if not already)
+        if task_id not in self.state.active_tasks and task_id not in self.assigned_tasks:
+            self.state.active_tasks.append(task_id)
+            self.assigned_tasks[task_id] = self.available_tasks.get(task_id, {})
     
     async def work_on_task(self, task_id: int):
         """
@@ -169,8 +173,13 @@ class SolverAgent(BaseAgent):
         # Submit solution
         await self.submit_solution(task_id, solution, coordinator)
         
-        # Clean up
-        del self.assigned_tasks[task_id]
+        # Clean up safely
+        if task_id in self.assigned_tasks:
+            del self.assigned_tasks[task_id]
+        
+        # Remove from active_tasks just in case it was added back
+        if task_id in self.state.active_tasks:
+            self.state.active_tasks.remove(task_id)
         self.state.completed_tasks += 1
         self.state.successful_bids += 1
         
