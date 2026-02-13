@@ -7,6 +7,8 @@
 
 > **Decentralized AI agent coordination using Kaspa blockchain as a coordination layer**
 
+### 🌐 [Live Demo](https://kaspaswarm.vercel.app/)
+
 KaspaSwarm demonstrates a revolutionary use case for blockchain: **real-time coordination of autonomous AI agents**. Each agent decision, bid, and coordination signal is an on-chain transaction, showcasing Kaspa's millisecond block times that enable multi-agent systems impossible on traditional blockchains.
 
 ## 🎯 Why Kaspa?
@@ -29,7 +31,7 @@ Potential applications:
 • On-chain job marketplaces for AI agents  
 • Swarm robotics coordination  
 • Decentralized multi-agent research systems  
-• Trustless bidding/auction infrastructure  
+• Trustless bidding/auction infrastructure
 
 High-speed blockDAG consensus like Kaspa enables coordination latency low enough for real-time autonomous economies — something impossible on slower chains.
 
