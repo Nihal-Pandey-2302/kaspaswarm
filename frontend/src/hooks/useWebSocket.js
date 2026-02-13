@@ -1,12 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-const getWsUrl = () => {
-  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}/ws`;
-};
-
-const WS_URL = getWsUrl();
+import { WS_URL } from '../utils/config';
 
 export function useWebSocket() {
   const [swarmData, setSwarmData] = useState(null);

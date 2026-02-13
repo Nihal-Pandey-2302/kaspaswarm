@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+import { API_BASE } from '../utils/config';
+
 export default function ControlPanel({ isConnected }) {
   const [isPaused, setIsPaused] = useState(false);
   const [taskTarget, setTaskTarget] = useState(5000);
@@ -20,7 +22,7 @@ export default function ControlPanel({ isConnected }) {
 
   const handlePauseResume = async () => {
     try {
-      const endpoint = isPaused ? '/api/control/resume' : '/api/control/pause';
+      const endpoint = isPaused ? `${API_BASE}/api/control/resume` : `${API_BASE}/api/control/pause`;
       const response = await fetch(endpoint, { method: 'POST' });
       const data = await response.json();
       
@@ -39,7 +41,7 @@ export default function ControlPanel({ isConnected }) {
   const handleSubmitAgent = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/control/add-agent', {
+      const response = await fetch(`${API_BASE}/api/control/add-agent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -63,7 +65,7 @@ export default function ControlPanel({ isConnected }) {
   const handleCreateTask = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`/api/control/create-task?target=${taskTarget}&reward=${taskReward}&task_type=${taskType}`, {
+      const response = await fetch(`${API_BASE}/api/control/create-task?target=${taskTarget}&reward=${taskReward}&task_type=${taskType}`, {
         method: 'POST'
       });
       const data = await response.json();
@@ -82,7 +84,7 @@ export default function ControlPanel({ isConnected }) {
   const handleUpdateFrequency = async () => {
     try {
       const response = await fetch(
-        `/api/control/frequency?min_interval=${minInterval}&max_interval=${maxInterval}`,
+        `${API_BASE}/api/control/frequency?min_interval=${minInterval}&max_interval=${maxInterval}`,
         { method: 'POST' }
       );
       const data = await response.json();
@@ -98,7 +100,7 @@ export default function ControlPanel({ isConnected }) {
     }
     
     try {
-      const response = await fetch('/api/control/reset', { method: 'POST' });
+      const response = await fetch(`${API_BASE}/api/control/reset`, { method: 'POST' });
       const data = await response.json();
       showMessage('🔄 Swarm reset!');
       setIsPaused(false);

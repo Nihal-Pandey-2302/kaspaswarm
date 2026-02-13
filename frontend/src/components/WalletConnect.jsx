@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../utils/config';
 
 const WalletConnect = () => {
   const [walletAddress, setWalletAddress] = useState(null);
@@ -11,7 +12,7 @@ const WalletConnect = () => {
 
   // Fetch Coordinator Address on mount
   useEffect(() => {
-    fetch('http://localhost:8000/api/address')
+    fetch(`${API_BASE}/api/address`)
       .then(res => res.json())
       .then(data => setCoordinatorAddress(data.address))
       .catch(err => console.error("Failed to fetch coordinator address:", err));
@@ -20,7 +21,7 @@ const WalletConnect = () => {
   // Fetch coordinator balance periodically
   useEffect(() => {
     const fetchBalance = () => {
-      fetch('http://localhost:8000/api/coordinator-balance')
+      fetch(`${API_BASE}/api/coordinator-balance`)
         .then(res => res.json())
         .then(data => setCoordinatorBalance(data.balance_kas))
         .catch(() => {});
@@ -84,7 +85,7 @@ const WalletConnect = () => {
         const bal = await window.kasware.getBalance();
         setBalance(bal.total / 100000000);
         // Also refresh coordinator balance
-        fetch('http://localhost:8000/api/coordinator-balance')
+        fetch(`${API_BASE}/api/coordinator-balance`)
           .then(res => res.json())
           .then(data => setCoordinatorBalance(data.balance_kas))
           .catch(() => {});
