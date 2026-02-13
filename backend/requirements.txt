@@ -1,14 +1,14 @@
 # Core dependencies
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-websockets==12.0
-python-dotenv==1.0.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+websockets>=12.0
+python-dotenv>=1.0.0
 
 # Async HTTP client
-httpx==0.26.0
+httpx>=0.27.0
 
 # Type checking and data validation
-pydantic==2.5.0
+pydantic>=2.7.0
 
 # Kaspa integration (will use HTTP RPC client)
 # Note: Using httpx for direct RPC calls as kaspa-wallet library may not be available
