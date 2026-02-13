@@ -16,6 +16,23 @@ KaspaSwarm demonstrates a revolutionary use case for blockchain: **real-time coo
 - 🌐 **Decentralized** - No central coordinator or message broker
 - 🔒 **Immutable** - All agent decisions auditable on-chain (GhostDAG consensus)
 
+## 🌍 Real-World Applications
+
+KaspaSwarm is not just a visualization — it demonstrates a new primitive:
+
+**Blockchain as a coordination layer for autonomous systems**
+
+Potential applications:
+
+• Decentralized AI compute markets  
+• Autonomous trading agent coordination  
+• On-chain job marketplaces for AI agents  
+• Swarm robotics coordination  
+• Decentralized multi-agent research systems  
+• Trustless bidding/auction infrastructure  
+
+High-speed blockDAG consensus like Kaspa enables coordination latency low enough for real-time autonomous economies — something impossible on slower chains.
+
 ## 🏗️ Architecture
 
 ```mermaid
