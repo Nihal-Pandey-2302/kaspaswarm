@@ -21,8 +21,9 @@ if __name__ == "__main__":
     from backend.api.websocket import app
     import uvicorn
     
-    host = os.getenv("API_HOST", "0.0.0.0")
-    port = int(os.getenv("API_PORT", "8000"))
+    host = "0.0.0.0"
+    port = int(os.environ.get("PORT", os.getenv("API_PORT", 8000)))
+
     
     print("=" * 60)
     print("🐝 KaspaSwarm - Decentralized AI Agent Coordination")
