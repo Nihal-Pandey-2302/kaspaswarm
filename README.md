@@ -17,6 +17,8 @@ https://kaspaswarm.vercel.app/
 
 > ⏳ Note: The backend is hosted on Render free tier and may take ~30–60 seconds to wake on first load if inactive.
 
+<img src="screenshots/kaspaswarm.gif" width="100%" alt="KaspaSwarm Live Demo" />
+
 KaspaSwarm demonstrates a revolutionary use case for blockchain: **real-time coordination of autonomous AI agents**. Each agent decision, bid, and coordination signal is an on-chain transaction, showcasing Kaspa's millisecond block times that enable multi-agent systems impossible on traditional blockchains.
 
 ## 📸 Screenshots
