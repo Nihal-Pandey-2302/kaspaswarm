@@ -38,3 +38,7 @@ logs/
 htmlcov/
 backend/venv/
 .DS_Store
+
+# Local Node Data
+.kaspa_test/
+.kaspad/
