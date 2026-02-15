@@ -7,9 +7,31 @@
 
 > **Decentralized AI agent coordination using Kaspa blockchain as a coordination layer**
 
-### 🌐 [Live Demo](https://kaspaswarm.vercel.app/)
+### 🎬 Demo Video
+
+https://youtu.be/UKgoAD2cslM
+
+### 🌐 Live Demo
+
+https://kaspaswarm.vercel.app/
+
+> ⏳ Note: The backend is hosted on Render free tier and may take ~30–60 seconds to wake on first load if inactive.
 
 KaspaSwarm demonstrates a revolutionary use case for blockchain: **real-time coordination of autonomous AI agents**. Each agent decision, bid, and coordination signal is an on-chain transaction, showcasing Kaspa's millisecond block times that enable multi-agent systems impossible on traditional blockchains.
+
+## 📸 Screenshots
+
+### 🐝 Swarm Live Coordination
+
+![Swarm Page](screenshots/swarmpage.png)
+
+### 📊 Performance & Metrics Dashboard
+
+![Performance](screenshots/performance_history.png)
+
+### 🛠 Task Creation & Agent Controls
+
+![Task Creation](screenshots/add new taks&agents.png)
 
 ## 🎯 Why Kaspa?
 
@@ -96,6 +118,9 @@ sequenceDiagram
 
 We use a local `kaspad` node to ensure stable testnet-10 connectivity.
 
+Running a local node is recommended for full live transaction demonstration.
+If public testnet endpoints are unavailable, the system will automatically operate in simulation mode.
+
 ```bash
 # Download and run kaspad
 # (See rusty-kaspa repo for binaries)
@@ -138,6 +163,39 @@ KaspaSwarm implements a full cryptographic stack in Python to interact with the 
 
 - **wRPC Client**: Asynchronous WebSocket client using JSON-RPC protocol.
 - **Fallbacks**: Automatic failover to REST API if wRPC is unavailable.
+
+## 🔗 Live Network Status & Demo Modes
+
+KaspaSwarm includes a full real Kaspa transaction pipeline:
+
+• Custom Blake2b sighash implementation  
+• BIP-340 Schnorr signing  
+• Full UTXO construction & signing  
+• Direct node broadcast via wRPC + REST fallback
+
+### 🟢 Live Mode (Real Transactions)
+
+While recording the demo, a personal local Kaspa node was used to broadcast and verify real testnet transactions.
+
+Anyone can run their own local kaspad node and fund agent wallets to see real on-chain coordination live.
+
+### 🟡 Public Testnet Status
+
+At the time of submission, public Testnet-10 infrastructure is intermittently unavailable.  
+Because of this, public endpoints may not always broadcast transactions reliably.
+
+### 🧪 Simulation Mode (Always Available)
+
+KaspaSwarm includes a fallback simulation mode that uses:
+
+• Real transaction encoding  
+• Real mempool logic  
+• Real coordination flow  
+• Mainnet-patterned transaction data
+
+This ensures the full coordination system can always be demonstrated even when public testnet nodes are down.
+
+Switching back to live mode requires only active node connectivity — no code changes.
 
 ## 🎮 Features
 
