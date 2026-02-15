@@ -33,7 +33,7 @@ KaspaSwarm demonstrates a revolutionary use case for blockchain: **real-time coo
 
 ### 🛠 Task Creation & Agent Controls
 
-![Task Creation](screenshots/add new taks&agents.png)
+![Task Creation](screenshots/task_creation.png)
 
 ## 🎯 Why Kaspa?
 
