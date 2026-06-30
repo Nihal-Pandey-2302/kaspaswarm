@@ -1,5 +1,5 @@
 # Core dependencies
-fastapi>=0.110.0
+fastapi>=0.138.0
 uvicorn[standard]>=0.29.0
 websockets>=12.0
 python-dotenv>=1.0.0
@@ -20,3 +20,6 @@ kaspa==1.0.0
 dataclasses-json==0.6.3
 ecdsa
 base58
+
+# MCP server (expose the swarm as tools for external AI agents)
+mcp>=1.28.0

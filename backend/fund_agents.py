@@ -22,6 +22,9 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
+from dotenv import load_dotenv  # noqa: E402
+load_dotenv(os.path.join(ROOT, ".env"))
+
 from backend.kcore.wallet import KaspaWallet, KaspaAddress  # noqa: E402
 from backend.kcore.schnorr import get_public_key  # noqa: E402
 from backend.bech32_util import encode_address  # noqa: E402
