@@ -99,6 +99,11 @@ class SwarmOrchestrator:
         elif event == "completed":
             task_entry["solution"] = data.get("solution", 0)
             task_entry["completed_at"] = time.time()
+
+        # Always surface a produced answer (even on a rejected/failed task) so the
+        # UI can show what the agent actually output, not just paid-out work.
+        if "solution" in data and data["solution"] not in (None, ""):
+            task_entry["solution"] = data["solution"]
         
     async def initialize_swarm(self):
         """Create and initialize all agents."""
@@ -149,6 +154,14 @@ class SwarmOrchestrator:
                 await self.sdk.subscribe(self._on_chain_message)
             except Exception as e:
                 print(f"⚠️ SDK transport subscribe failed ({e}); falling back to ChainWatcher")
+                # Drop the dead SDK handle so stats + delivery dedup (base_agent
+                # picks `sdk or chain_watcher`) use the live watcher, not the
+                # half-connected transport that just failed to subscribe.
+                try:
+                    await self.sdk.close()
+                except Exception:
+                    pass
+                self.sdk = None
                 ws_url = os.getenv("KASPA_WS_URL", "ws://127.0.0.1:18210")
                 self.chain_watcher = ChainWatcher(ws_url, self._on_chain_message)
                 await self.chain_watcher.start()
@@ -304,11 +317,14 @@ class SwarmOrchestrator:
                 input_data = {"prefix": prefix}
                 description = f"Crack SHA256 hash starting with '{prefix}'"
             elif task_type == TaskType.SORTING:
-                array_size = max(50, min(target, 1000)) # Clamp between 50 and 1000
+                # Keep arrays small — the full input rides on-chain in the tx
+                # payload, and payload size drives tx mass/fee (matches the auto
+                # generate_task path; larger sizes get the carrier tx rejected).
+                array_size = max(10, min(target, 40))
                 input_data = {"array": [random.randint(1, 1000) for _ in range(array_size)]}
                 description = f"Sort array of {array_size} integers"
             elif task_type == TaskType.DATA_SEARCH:
-                dataset_size = max(100, min(target, 5000)) # Clamp
+                dataset_size = max(10, min(target, 40))  # small: rides on-chain
                 dataset = [f"item_{i}" for i in range(dataset_size)]
                 query = f"item_{random.randint(0, dataset_size-1)}"
                 input_data = {"dataset": dataset, "query": query}

@@ -5,8 +5,12 @@ KaspaSwarm consists of two distinct components that need to be deployed separate
 1.  **Frontend**: A React application (deployed to Vercel/Netlify)
 2.  **Backend**: A Python agent swarm (deployed to Render/Railway/VPS)
 
-> **⚠️ Critical Note on Kaspa Network**
-> Since `testnet-10` public infrastructure is currently unstable, you must ensure your backend has access to a working Kaspa node (`kaspad`). The easiest way is to run the backend on a VPS (like DigitalOcean or Hetzner) where you can also run your own `kaspad` node.
+> **ℹ️ Note on Kaspa connectivity**
+> The default `sdk` transport connects to `testnet-10` through the **community-node
+> Resolver** — you do **not** need to run your own `kaspad` node. The backend can run
+> on any persistent host (Render/Railway/VPS); only a funded coordinator address is
+> required. Running your own node is optional and only needed for the legacy
+> `handrolled` transport (`KASPA_TRANSPORT=handrolled` + `KASPA_WS_URL`).
 
 ---
 
@@ -16,7 +20,7 @@ KaspaSwarm consists of two distinct components that need to be deployed separate
 | -------------- | ------------------ | -------------------------- | ------------------------------------------------------------------ |
 | **Frontend**   | Static Site / SPA  | **Vercel** / Netlify       | Free, fast global CDN, connects to backend via WebSocket           |
 | **Backend**    | Persistent Process | **Render** / Railway / VPS | Needs to run 24/7 (Long-running process), NOT serverless           |
-| **Kaspa Node** | Blockchain Node    | **Self-Hosted VPS**        | Needs high bandwidth/storage. Public testnet nodes are unreliable. |
+| **Kaspa Node** | Blockchain Node    | **Optional**               | Not needed with the default SDK+Resolver transport; only for `handrolled`. |
 
 ---
 
@@ -24,9 +28,9 @@ KaspaSwarm consists of two distinct components that need to be deployed separate
 
 The backend runs the agent swarm. It **cannot** be deployed on Vercel Serverless functions because it needs to maintain a persistent WebSocket server and continuous agent loops.
 
-### Option A: Render / Railway (Easiest Cloud)
+### Option A: Render / Railway (Easiest Cloud) — Recommended
 
-_Note: Public Testnet-10 nodes must be accessible for this to work._
+The default SDK+Resolver transport means **no Kaspa node is required** — cloud hosting is now the simplest path.
 
 1.  Push your code to GitHub.
 2.  Create a **New Web Service** on Render/Railway.
@@ -37,19 +41,26 @@ _Note: Public Testnet-10 nodes must be accessible for this to work._
     - **Build Command**: `pip install -r requirements.txt`
     - **Start Command**: `gunicorn -k uvicorn.workers.UvicornWorker main:app` (or `python -m main`)
 5.  **Environment Variables**:
-    - `KASPA_WS_URL`: `wss://your-node-url` (or public node if available)
     - `MOCK_MODE`: `false` (for live) or `true` (for demo)
+    - `KASPA_NETWORK`: `testnet-10`
+    - `KASPA_TRANSPORT`: `sdk` (default; connects via Resolver — no node needed)
+    - `COORDINATOR_ADDRESS` / `COORDINATOR_PRIVATE_KEY`: a funded testnet keypair
+    - `AGENT_MASTER_SEED`: any stable secret (derives fundable agent addresses)
+    - `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`: *(optional)* for real AI tasks
     - `PORT`: `8000`
 
-### Option B: VPS (Recommended for Stability) 🛡️
+> ⚠️ Set secrets in the host's env var UI — never commit real keys. Rotate them after the event.
 
-_Best option currently to run your own `kaspad` node alongside the swarm._
+### Option B: VPS with your own node (legacy `handrolled` transport) 🛡️
+
+_Only needed if you specifically want to run against your own `kaspad` instead of the Resolver._
 
 1.  Rent a VPS (Ubuntu 22.04) from Hetzner/DigitalOcean.
 2.  Install `kaspad` (see [Running a Node](https://github.com/kaspanet/rusty-kaspa)).
     ```bash
     ./kaspad --testnet --netsuffix=10 --rpclisten-json=default --utxoindex
     ```
+    Then set `KASPA_TRANSPORT=handrolled` and `KASPA_WS_URL=ws://127.0.0.1:18210`.
 3.  Clone the repo and run the swarm:
 
     ```bash

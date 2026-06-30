@@ -261,7 +261,7 @@ async def set_frequency(min_interval: float = 5.0, max_interval: float = 15.0):
             content={"error": "Swarm not initialized"}
         )
     
-    orchestrator.set_task_frequency(min_interval, max_interval)
+    await orchestrator.set_task_frequency(min_interval, max_interval)
     return {"status": "updated", "min": min_interval, "max": max_interval}
 
 

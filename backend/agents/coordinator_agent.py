@@ -297,11 +297,30 @@ class CoordinatorAgent(BaseAgent):
         # verifier-agent for AI tasks. This is the gate a covenant enforces on-chain.
         is_correct = await self._check_solution(task, solution)
 
+        if is_correct is None:
+            # Could not verify (no judge / verifier outage / no answer) — this is
+            # an infrastructure gap, not solver misbehaviour. Cancel: return the
+            # stake, no reward, NO slash. Still record the answer for the UI.
+            if self.orchestrator:
+                await self.orchestrator.escrow.cancel(task.task_id)
+                self.orchestrator.log_task_event(task.task_id, "rejected", {
+                    "solution": solution,
+                    "solver": message.sender,
+                })
+            print(f"⚠️ Task {task.task_id} could not be verified (no LLM judge) — cancelled, not slashed")
+            return
+
         if not is_correct:
             # Soft slash: failed verification costs reputation + staked collateral.
             if self.orchestrator:
                 self.orchestrator.adjust_reputation(message.sender, -15)
                 await self.orchestrator.escrow.slash(task.task_id)
+                # Record the produced answer + rejected status so the UI can still
+                # show what the agent output (it just didn't pass verification).
+                self.orchestrator.log_task_event(task.task_id, "rejected", {
+                    "solution": solution,
+                    "solver": message.sender,
+                })
             print(f"❌ Task {task.task_id} solution from {message.sender[:20]}... REJECTED (failed verification) — stake slashed")
             return
 
@@ -337,8 +356,10 @@ class CoordinatorAgent(BaseAgent):
                 await self.orchestrator.escrow.cancel(task.task_id)
             print(f"⚠️ Reward payout failed for task {task.task_id}: {reward_tx} — not settled")
 
-    async def _check_solution(self, task, solution) -> bool:
-        """Verify a submitted solution. LLM judge for AI tasks; deterministic otherwise."""
+    async def _check_solution(self, task, solution):
+        """Verify a submitted solution. LLM judge for AI tasks; deterministic
+        otherwise. Returns True/False, or None when an AI task could not be
+        verified (no judge / outage) so the caller can cancel instead of slash."""
         if task.task_type == TaskType.AI_TASK:
             return await self._verify_ai(task, solution)
         try:
@@ -350,19 +371,29 @@ class CoordinatorAgent(BaseAgent):
             print(f"⚠️ verification error for task {task.task_id}: {e} — rejecting")
             return False
 
-    async def _verify_ai(self, task, solution) -> bool:
-        """Use an LLM verifier-agent to grade an AI-task answer (PASS/FAIL)."""
+    async def _verify_ai(self, task, solution):
+        """Grade an AI-task answer with an LLM verifier-agent.
+
+        Returns a tri-state so settlement can be fair:
+          True  -> verified good (pay)
+          False -> verified bad / FAIL verdict (slash — the solver's fault)
+          None  -> could NOT verify (no answer, no judge configured, or judge
+                   outage). This is infrastructure, not solver misbehaviour, so
+                   the caller cancels (returns stake, no slash) instead of
+                   punishing a solver for the operator's missing LLM.
+        """
         from backend.llm_client import get_llm
         llm = get_llm()
         answer = str(solution or "").strip()
         if not answer or answer.startswith("[AI agent produced no answer"):
-            return False
+            # Solver had no LLM to do the work — infra gap, not cheating.
+            print(f"⚠️ Task {task.task_id}: no AI answer produced — cannot verify")
+            return None
         if not llm.is_available():
-            # No judge configured -> we cannot verify AI work, and AI tasks require
-            # an LLM to be solved anyway, so fail CLOSED rather than pay for
-            # unverified output.
-            print(f"⚠️ No LLM verifier configured for task {task.task_id} — rejecting AI solution")
-            return False
+            # No judge configured -> we cannot verify, but we won't slash the
+            # solver for the operator not running an LLM verifier.
+            print(f"⚠️ No LLM verifier configured for task {task.task_id} — cannot verify")
+            return None
         prompt = (task.input_data or {}).get("prompt", "")
         verdict = await llm.complete(
             system="You are a strict verifier agent. Decide whether the ANSWER correctly "
@@ -372,8 +403,8 @@ class CoordinatorAgent(BaseAgent):
             temperature=0.0,
         )
         if verdict is None:
-            # A judge WAS configured but the call failed -> fail CLOSED (reject),
-            # so an outage can't be exploited to extract payment for garbage.
-            print(f"⚠️ AI verifier unavailable for task {task.task_id} — rejecting")
-            return False
+            # A judge WAS configured but the call failed -> treat as unverifiable
+            # (cancel, no slash), so an outage can't penalise an honest solver.
+            print(f"⚠️ AI verifier unavailable for task {task.task_id} — cannot verify")
+            return None
         return "PASS" in verdict.upper()

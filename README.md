@@ -29,10 +29,14 @@ This is only possible because Kaspa's **blockDAG confirms ~10 blocks/second** �
 
 KaspaSwarm originated at **Kaspathon 2026** (4th place, Main Track · winner, Real-Time Data · winner, Best Real-World Application). This repository is an active evolution of that project for the **UK AI Agent Hackathon EP5**, with substantial new work:
 
-- **Kaspa is now the real coordination bus** — messages moved from the transaction *amount* hack into the transaction *payload* field, plus a new `ChainWatcher` that delivers messages decoded from confirmed blocks (delivery is gated on real block inclusion).
-- **Deterministic, fundable agent wallets** + tooling (`fund_agents.py`, `live_test.py`).
-- **Correct directed message delivery** and a hardened agent lifecycle.
-- **(In progress)** SilverScript covenant settlement (conditional escrow) on Testnet-12.
+- **Kaspa is now the real coordination bus** — messages moved from the transaction *amount* hack into the transaction *payload* field. Delivery is gated on **real block inclusion**: turn the chain off and the swarm stops.
+- **Official Kaspa SDK transport via the Resolver** (`backend/kcore/sdk_transport.py`) — connects through the community-node Resolver (no node IP required), streams `BlockAdded` events, and builds change-aware transactions with adaptive, mass-based fees. The hand-rolled wRPC/`ChainWatcher` stack remains as a fallback.
+- **Real LLM-powered agents** — solvers complete actual AI tasks via any OpenAI-compatible endpoint (Groq, OpenAI, local Ollama), and a separate LLM **verifier-agent** grades the answer before payment. Falls back to deterministic compute tasks when no LLM is configured.
+- **A real agent economy** — reputation-weighted reverse auction (`√reputation / bid`) for assignment, plus in-protocol **escrow** (lock → release / slash / cancel) so honest work is paid and failed work is penalised.
+- **MCP server** (`backend/mcp_server.py`) — any external AI agent (Claude Desktop, Cursor, Claude Code) can **hire the swarm** as a tool: post an AI task, the swarm bids/solves/verifies and settles on Kaspa, and the caller retrieves the result. *An agent hiring agents, settled on a fast L1.*
+- **Deterministic, fundable agent wallets** + tooling (`fund_agents.py`).
+
+> **A note on covenants:** trustless on-chain escrow via KIP-10 introspection (SilverScript) is the natural settlement primitive here, and a covenant draft is included (`backend/covenants/agent_escrow.sil`). The shipping Kaspa Python SDK (1.0.0) does not yet expose the introspection opcodes, so settlement currently runs through the in-protocol escrow described above; the abstraction (`backend/kcore/covenant.py`) is ready to swap in once the opcodes ship.
 
 Prior-project code is disclosed as such; the items above are new work for this event.
 
@@ -106,16 +110,18 @@ graph TD
 
 Every coordination message (task, bid, assignment, solution) is a **real Kaspa
 transaction whose `payload` field carries the full, JSON-encoded message** (tagged
-with a `KSWARM1:` magic prefix). A `ChainWatcher` subscribes to block
-notifications, decodes swarm payloads out of confirmed blocks, and only *then*
-delivers them to the recipient agent. **Delivery is gated on real block inclusion**
-— turn the chain off and the swarm stops. Kaspa is the medium, not a decorative anchor.
+with a `KSWARM1:` magic prefix). The **SDK transport** (via the Resolver) subscribes
+to `BlockAdded` events, decodes swarm payloads out of confirmed blocks, and only
+*then* delivers them to the recipient agent. **Delivery is gated on real block
+inclusion** — turn the chain off and the swarm stops. Kaspa is the medium, not a
+decorative anchor.
 
 1. **Task Creation**: Coordinator broadcasts a tx; the `payload` is the task announcement.
-2. **Observation**: The `ChainWatcher` sees the block, decodes the payload, delivers it to solvers.
+2. **Observation**: The transport sees the block, decodes the payload, delivers it to solvers.
 3. **Bidding**: Solvers broadcast bid txs (payload-encoded) from their own funded addresses.
-4. **Assignment**: Coordinator selects a bid and broadcasts a directed assignment tx to the winner.
-5. **Settlement**: On an accepted solution, the reward is paid as a native KAS transfer.
+4. **Assignment**: Coordinator runs a **reputation-weighted reverse auction** (`√reputation / bid`), locks **escrow**, and broadcasts a directed assignment tx to the winner.
+5. **Execution & Verification**: The winning solver does the work (LLM for AI tasks, deterministic compute otherwise); the coordinator verifies the result (an LLM **verifier-agent** for AI tasks).
+6. **Settlement**: On a verified solution the reward is paid as a native KAS transfer and escrow is **released**; a failed answer is **slashed**; an unverifiable one (e.g. no judge available) is **cancelled** (stake returned, no penalty).
 
 ```mermaid
 sequenceDiagram
@@ -145,18 +151,19 @@ sequenceDiagram
 
 - Python 3.11+
 - Node.js 18+
-- [Rusty Kaspa (kaspad)](https://github.com/kaspanet/rusty-kaspa) (for local node)
+- A funded **testnet-10** address (get TKAS from the [faucet](https://faucet-tn10.kaspanet.io/))
+- *(optional)* [Rusty Kaspa (kaspad)](https://github.com/kaspanet/rusty-kaspa) only if you prefer the `handrolled` transport against your own node
 
-### 1. Setup Local Node (Required for Real Transactions)
+### 1. Network Connectivity
 
-We use a local `kaspad` node to ensure stable testnet-10 connectivity.
+The default `sdk` transport connects to testnet-10 through the **community-node
+Resolver** — **no local node or node IP required**. Just fund a testnet address and go.
 
-Running a local node is recommended for full live transaction demonstration.
-If public testnet endpoints are unavailable, the system will automatically operate in simulation mode.
+If you'd rather run your own node, set `KASPA_TRANSPORT=handrolled` and point
+`KASPA_WS_URL` at it:
 
 ```bash
-# Download and run kaspad
-# (See rusty-kaspa repo for binaries)
+# Optional: only for the handrolled transport
 ./kaspad --testnet --netsuffix=10 --rpclisten-json=default --utxoindex
 ```
 
@@ -176,18 +183,25 @@ Edit `.env` for **live mode**:
 
 ```bash
 MOCK_MODE=false
-KASPA_WS_URL=ws://127.0.0.1:18210          # your local node's JSON wRPC
+KASPA_NETWORK=testnet-10
+KASPA_TRANSPORT=sdk                         # SDK + Resolver (no node IP needed)
 COORDINATOR_ADDRESS=kaspatest:...          # a FUNDED testnet address
 COORDINATOR_PRIVATE_KEY=...                # its private key (never commit real values)
 AGENT_MASTER_SEED=any-stable-secret        # derives stable, fundable agent addresses
+
+# Optional — real AI agents (any OpenAI-compatible endpoint). Omit to run
+# deterministic compute tasks only.
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_API_KEY=gsk_...
+LLM_MODEL=llama-3.1-8b-instant
 ```
 
-Then fund the agents and validate the on-chain bus (node must be synced):
+Then fund the agents and validate the on-chain bus:
 
 ```bash
 python backend/fund_agents.py check        # list agent addresses + balances
 python backend/fund_agents.py fund 25      # send 25 TKAS to each solver
-python backend/live_test.py                # broadcast 1 probe, confirm watcher decodes it
+python backend/sdk_live_test.py            # broadcast 1 probe, confirm the transport decodes it
 ```
 
 > Leave `MOCK_MODE=true` to run the full coordination flow in-memory with no node.
@@ -198,6 +212,40 @@ python backend/live_test.py                # broadcast 1 probe, confirm watcher 
 cd ../frontend
 npm install
 npm run dev
+```
+
+## 🔌 MCP — Hire the Swarm from Any AI Agent
+
+KaspaSwarm ships an [MCP](https://modelcontextprotocol.io) server
+(`backend/mcp_server.py`) that exposes the swarm as tools to any MCP client —
+Claude Desktop, Cursor, Claude Code. An external agent can **hire the swarm**:
+post an AI task, the swarm's solvers bid, an LLM does the work, a verifier-agent
+checks it, and the reward settles on Kaspa.
+
+```text
+Claude Desktop ──post_ai_task("summarize X")──▶ mcp_server ──HTTP──▶ KaspaSwarm
+                                                                   coordinator posts task,
+                                                                   solver bids + LLM solves,
+                                                                   verifier checks, pays on Kaspa
+Claude Desktop ◀──────────── answer ─────────── get_task_result(id) ◀──┘
+```
+
+**Tools:** `post_ai_task(prompt, reward_kas)` · `get_task_result(task_id)` · `swarm_status()`
+
+Tasks posted over MCP are tagged and shown with a **🔌 via MCP** badge in the dashboard.
+
+Add to your MCP client config (with the backend running on `:8000`):
+
+```json
+{
+  "mcpServers": {
+    "kaspaswarm": {
+      "command": "/abs/path/backend/venv/bin/python",
+      "args": ["/abs/path/backend/mcp_server.py"],
+      "env": { "SWARM_API": "http://localhost:8000" }
+    }
+  }
+}
 ```
 
 ## 🔧 Technical Implementation
@@ -221,10 +269,18 @@ KaspaSwarm implements a full cryptographic stack in Python to interact with the 
 - **Payload transport**: Full coordination messages are serialized into the Kaspa
   transaction `payload` field (`backend/kcore/transaction.py`), committed to by the
   sighash — not crammed into the amount. No size/ID limits from the old scheme.
-- **ChainWatcher** (`backend/kcore/chain_watcher.py`): subscribes to `notifyBlockAdded`,
-  scans each block's transactions for `KSWARM1:` payloads, resolves the recipient from
-  output addresses, dedups by tx id, and delivers decoded messages to agents — so
-  coordination genuinely flows *through* the chain. Auto-reconnects with backoff.
+- **SDK transport** (`backend/kcore/sdk_transport.py`, default): uses the official
+  Kaspa Python SDK through the **Resolver** (auto-selects a community node — no node
+  IP). Streams `BlockAdded` events, scans txs for `KSWARM1:` payloads, resolves the
+  recipient from the payload, dedups by tx id, and builds change-aware transactions
+  with adaptive, mass-based fees. Separate subscription and request connections so the
+  block stream and sends never contend on one socket.
+- **ChainWatcher** (`backend/kcore/chain_watcher.py`, fallback): hand-rolled wRPC
+  watcher that subscribes to `notifyBlockAdded` and decodes the same payloads — used
+  automatically if the SDK transport can't start. Auto-reconnects with backoff.
+- **Agent economy** (`backend/swarm/protocol.py`, `backend/kcore/covenant.py`):
+  reputation-weighted reverse auction for assignment and in-protocol escrow that
+  locks a stake on assignment and releases, slashes, or cancels it at settlement.
 - **Deterministic agent wallets**: each agent derives a stable address from a master
   seed (`AGENT_MASTER_SEED`), so addresses persist across restarts and can be funded
   once (see `backend/fund_agents.py`).
@@ -264,11 +320,12 @@ Switching back to live mode requires only active node connectivity — no code c
 
 ## 🎮 Features
 
-✅ **2 Coordinator Agents** posting tasks  
-✅ **8 Solver Agents** with skill-based bidding strategies  
-✅ **Real-time 3D Visualization** (Three.js)  
-✅ **Live Transaction Monitoring** via local node wRPC  
-✅ **Statistics Dashboard** showing swarm metrics  
+✅ **Real on-chain coordination** on testnet-10 via the Kaspa SDK + Resolver  
+✅ **LLM-powered agents** — solvers do real AI work; a verifier-agent grades it before payment  
+✅ **Agent economy** — reputation-weighted reverse auction + in-protocol escrow (lock/release/slash/cancel)  
+✅ **MCP server** — external AI agents can hire the swarm and settle on Kaspa  
+✅ **2 Coordinator + 8 Solver Agents** with skill-based bidding  
+✅ **Real-time 3D Visualization** (Three.js) + statistics & on-chain activity dashboard  
 ✅ **Emergent Swarm Behavior**
 
 ## 📄 License
@@ -283,4 +340,4 @@ For detailed instructions on deploying the Frontend to Vercel and Backend to Ren
 
 ---
 
-**Built for Kaspathon 2026 🏆**
+**Built for Kaspathon 2026 🏆 · evolved for the UK AI Agent Hackathon EP5**

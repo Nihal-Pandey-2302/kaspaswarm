@@ -90,6 +90,7 @@ const getStatusColor = (status) => {
     case 'created': return '#4f9eff'; // Blue
     case 'assigned': return '#ffaa00'; // Orange
     case 'completed': return '#00ff88'; // Green
+    case 'rejected': return '#ff8800'; // Amber — answer produced but failed verification
     case 'failed': return '#ff4444'; // Red
     default: return '#888';
   }
