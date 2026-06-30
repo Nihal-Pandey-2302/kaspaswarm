@@ -82,29 +82,50 @@ High-speed blockDAG consensus like Kaspa enables coordination latency low enough
 
 ```mermaid
 graph TD
-    subgraph "Kaspa Network (Testnet-10)"
-        Node[Local kaspad Node]
-        Consensus[GhostDAG Consensus]
-        Node --- Consensus
+    subgraph EXT["External AI Agents"]
+        MCP["Claude Desktop / Cursor<br/>(MCP client)"]
     end
 
-    subgraph "Agent Swarm (Backend)"
-        Coord[Coordinator Agents]
-        Solver[Solver Agents]
-        Wallet[Kaspa Wallet Module]
-
-        Coord --"Post Task (Tx)"--> Wallet
-        Solver --"Submit Bid (Tx)"--> Wallet
-        Wallet --"wRPC (Borsh/JSON)"--> Node
+    subgraph FE["Frontend"]
+        React["React + Three.js<br/>dashboard"]
     end
 
-    subgraph "Visualization (Frontend)"
-        React[React + Three.js]
+    subgraph BE["Agent Swarm Backend (FastAPI)"]
+        MCPSrv["MCP Server<br/>(post_ai_task / get_result)"]
+        API["WebSocket / REST API"]
+        Coord["Coordinator Agents<br/>auction + escrow + verify"]
+        Solver["Solver Agents<br/>bid + execute"]
+        Econ["Economy<br/>reputation auction · escrow<br/>(lock/release/slash/cancel)"]
+        LLM["LLM client<br/>(Groq / OpenAI / Ollama)"]
+        TX["SDK Transport<br/>(payload codec · adaptive fee)"]
 
-        Node --"WebSocket Stream"--> BackendAPI
-        BackendAPI[FastAPI Server] --"State Updates"--> React
+        MCPSrv --"create AI task"--> API
+        API --> Coord
+        Coord <--"tasks · bids · assignments"--> Solver
+        Coord --- Econ
+        Coord --"verify answer"--> LLM
+        Solver --"solve AI task"--> LLM
+        Coord --"broadcast tx"--> TX
+        Solver --"broadcast tx"--> TX
     end
+
+    subgraph KAS["Kaspa Network (Testnet-10)"]
+        Resolver["Resolver<br/>(community-node auto-select)"]
+        Node["kaspad node"]
+        Consensus["GhostDAG Consensus<br/>~10 blocks/sec"]
+        Resolver --- Node --- Consensus
+    end
+
+    MCP --"MCP tool call"--> MCPSrv
+    TX --"submit tx (payload = message)"--> Resolver
+    Resolver --"BlockAdded stream"--> TX
+    API --"state updates (WS)"--> React
 ```
+
+> Every task, bid, assignment, and solution is a real Kaspa transaction whose
+> `payload` carries the message. Delivery is gated on the `BlockAdded` stream, so
+> the chain is the message bus **and** the payment rail. If the SDK transport can't
+> start, a hand-rolled `ChainWatcher` (wRPC) fallback decodes the same payloads.
 
 ### Transaction Flow — Kaspa as the coordination bus
 
@@ -125,20 +146,37 @@ decorative anchor.
 
 ```mermaid
 sequenceDiagram
+    participant M as MCP Client
     participant C as Coordinator
-    participant K as Kaspa Node
-    participant W as ChainWatcher
-    participant S as Solver Swarm
+    participant T as SDK Transport
+    participant K as Kaspa (Resolver → node)
+    participant S as Solver
+    participant L as LLM
 
-    C->>K: Broadcast Task Tx (payload = announcement)
-    K-->>W: notifyBlockAdded (block w/ tx)
-    W->>S: Decode payload, deliver to solvers
-    S->>K: Broadcast Bid Tx (payload = bid)
-    K-->>W: notifyBlockAdded
-    W->>C: Deliver decoded bid
-    C->>K: Broadcast Assignment Tx (directed to winner)
-    C->>K: Settlement Tx (native KAS reward)
-    K-->>S: Payment Received (UTXO)
+    M->>C: post_ai_task(prompt) (optional entry)
+    C->>T: Task tx (payload = announcement)
+    T->>K: submit
+    K-->>T: BlockAdded (tx confirmed)
+    T->>S: decode payload, deliver
+    S->>T: Bid tx (payload = bid)
+    T->>K: submit
+    K-->>T: BlockAdded
+    T->>C: deliver decoded bid
+    Note over C: reputation-weighted auction<br/>(√rep / bid) → lock escrow
+    C->>T: Assignment tx (directed to winner)
+    S->>L: solve (AI task)
+    S->>T: Solution tx (payload = answer)
+    T->>C: deliver decoded solution
+    C->>L: verify answer (PASS / FAIL)
+    alt verified
+        C->>K: Settlement tx (KAS reward) + release escrow
+        K-->>S: payment received
+    else failed verification
+        C->>C: slash stake + reputation
+    else unverifiable (no judge)
+        C->>C: cancel (return stake, no penalty)
+    end
+    M->>C: get_task_result(id) → answer
 ```
 
 > A bulletproof in-memory fallback delivers messages if a broadcast fails, so a
