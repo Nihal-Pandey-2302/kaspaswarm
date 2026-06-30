@@ -1,3 +1,5 @@
+const kas = (sompi) => `${(Number(sompi || 0) / 1e8).toFixed(2)} KAS`;
+
 export default function StatsOverlay({ swarmData, isConnected }) {
   if (!swarmData) {
     return (
@@ -73,8 +75,8 @@ export default function StatsOverlay({ swarmData, isConnected }) {
         </div>
         
         <div style={styles.stat}>
-          <span style={styles.label}>Total Rewards:</span>
-          <span style={styles.value}>{totalEarnings} sompi</span>
+          <span style={styles.label}>Rewards Paid:</span>
+          <span style={styles.value}>{kas(swarmData.escrow?.kas_released)}</span>
         </div>
 
         {swarmData.escrow && (
@@ -87,6 +89,11 @@ export default function StatsOverlay({ swarmData, isConnected }) {
             </span>
           </div>
         )}
+
+        <div style={styles.stat}>
+          <span style={styles.label}>Integrations:</span>
+          <span style={{ ...styles.value, fontSize: '11px', color: '#4f9eff' }}>🔌 MCP-hireable</span>
+        </div>
       </div>
 
       {/* Legend */}

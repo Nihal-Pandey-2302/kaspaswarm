@@ -42,7 +42,7 @@ async def post_ai_task(prompt: str, reward_kas: float = 0.5) -> dict:
     reward = int(reward_kas * SOMPI)
     async with httpx.AsyncClient(timeout=20) as c:
         r = await c.post(f"{API}/api/control/create-task",
-                         params={"reward": reward, "task_type": "ai_task", "prompt": prompt})
+                         params={"reward": reward, "task_type": "ai_task", "prompt": prompt, "source": "mcp"})
         return r.json()
 
 

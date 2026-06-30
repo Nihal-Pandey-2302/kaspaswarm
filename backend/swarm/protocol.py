@@ -89,6 +89,10 @@ class SwarmOrchestrator:
             task_entry["description"] = data.get("description", "")
             task_entry["reward"] = data.get("reward", 0)
             task_entry["coordinator"] = data.get("coordinator", "")
+            # Preserve a source already set by an earlier "created" event (e.g.
+            # manual_task_creation tagging source="mcp"); the broadcast re-log
+            # carries no source key and must not clobber it back to "auto".
+            task_entry["source"] = data.get("source", task_entry.get("source", "auto"))
         elif event == "assigned":
             task_entry["assigned_to"] = data.get("solver", "")
             task_entry["bid_amount"] = data.get("bid_amount", 0)
@@ -275,7 +279,7 @@ class SwarmOrchestrator:
             agent.paused = False
         print("▶️  Swarm resumed")
     
-    async def manual_task_creation(self, target: int, reward: int, task_type_str: str = "prime_finding", prompt: str = ""):
+    async def manual_task_creation(self, target: int, reward: int, task_type_str: str = "prime_finding", prompt: str = "", source: str = "ui"):
         """Manually create a task (for testing)."""
         # Find first coordinator
         coordinator = next((a for a in self.agents if a.state.role == "coordinator"), None)
@@ -332,7 +336,8 @@ class SwarmOrchestrator:
                 "description": task.description,
                 "reward": task.reward,
                 "coordinator": coordinator.state.agent_id,
-                "task_type": task_type.value
+                "task_type": task_type.value,
+                "source": source,
             })
             
             await coordinator.broadcast_task(task)

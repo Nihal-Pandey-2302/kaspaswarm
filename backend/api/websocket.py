@@ -234,7 +234,7 @@ async def resume_swarm():
 
 
 @app.post("/api/control/create-task")
-async def create_task(reward: int, target: int = 1000, task_type: str = "prime_finding", prompt: str = ""):
+async def create_task(reward: int, target: int = 1000, task_type: str = "prime_finding", prompt: str = "", source: str = "ui"):
     """Manually create a task."""
     if not orchestrator:
         return JSONResponse(
@@ -248,7 +248,7 @@ async def create_task(reward: int, target: int = 1000, task_type: str = "prime_f
             content={"error": "Invalid task type"}
         )
 
-    result = await orchestrator.manual_task_creation(target, reward, task_type, prompt)
+    result = await orchestrator.manual_task_creation(target, reward, task_type, prompt, source)
     return result
 
 

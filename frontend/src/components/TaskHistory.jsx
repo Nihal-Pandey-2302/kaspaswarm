@@ -15,11 +15,14 @@ const TaskHistory = ({ tasks, onClose }) => {
             <div key={task.task_id} style={styles.taskCard} className="ks-list-item">
               <div style={styles.taskHeader}>
                 <span style={styles.taskId}>#{task.task_id}</span>
-                <span style={{
-                  ...styles.statusBadge,
-                  backgroundColor: getStatusColor(task.status)
-                }}>
-                  {task.status}
+                <span style={styles.headRight}>
+                  {task.source === 'mcp' && <span style={styles.mcpBadge}>🔌 via MCP</span>}
+                  <span style={{
+                    ...styles.statusBadge,
+                    backgroundColor: getStatusColor(task.status)
+                  }}>
+                    {task.status}
+                  </span>
                 </span>
               </div>
               
@@ -28,7 +31,7 @@ const TaskHistory = ({ tasks, onClose }) => {
               <div style={styles.details}>
                 <div style={styles.detailRow}>
                   <span>Reward:</span>
-                  <span style={styles.reward}>{task.reward} sompi</span>
+                  <span style={styles.reward}>{kas(task.reward)}</span>
                 </div>
                 
                 {task.task_type && (
@@ -48,7 +51,7 @@ const TaskHistory = ({ tasks, onClose }) => {
                 {task.bid_amount ? (
                   <div style={styles.detailRow}>
                     <span>Winning bid:</span>
-                    <span style={styles.reward}>{task.bid_amount} sompi</span>
+                    <span style={styles.reward}>{kas(task.bid_amount)}</span>
                   </div>
                 ) : null}
                 
@@ -80,6 +83,8 @@ const TaskHistory = ({ tasks, onClose }) => {
 };
 
 // Helper functions
+const kas = (sompi) => `${(Number(sompi || 0) / 1e8).toFixed(3)} KAS`;
+
 const getStatusColor = (status) => {
   switch (status) {
     case 'created': return '#4f9eff'; // Blue
@@ -184,6 +189,20 @@ const styles = {
     color: '#9aa4b2',
     fontSize: '12px',
     fontWeight: 600,
+  },
+  headRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  },
+  mcpBadge: {
+    fontSize: '9px',
+    fontWeight: 700,
+    color: '#4f9eff',
+    background: 'rgba(79,158,255,0.12)',
+    border: '1px solid rgba(79,158,255,0.35)',
+    borderRadius: '20px',
+    padding: '2px 7px',
   },
   statusBadge: {
     padding: '3px 9px',
