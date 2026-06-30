@@ -5,7 +5,7 @@ import { API_BASE } from '../utils/config';
 export default function ControlPanel({ isConnected }) {
   const [isPaused, setIsPaused] = useState(false);
   const [taskTarget, setTaskTarget] = useState(5000);
-  const [taskReward, setTaskReward] = useState(2000);
+  const [taskReward, setTaskReward] = useState(0.5);  // KAS (converted to sompi on submit)
   const [minInterval, setMinInterval] = useState(5);
   const [maxInterval, setMaxInterval] = useState(15);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -13,6 +13,7 @@ export default function ControlPanel({ isConnected }) {
   const [newAgentRole, setNewAgentRole] = useState('solver');
   const [newAgentSkill, setNewAgentSkill] = useState(1.0);
   const [taskType, setTaskType] = useState('prime_finding');
+  const [taskPrompt, setTaskPrompt] = useState('Summarize in one sentence why Kaspa is fast.');
   const [message, setMessage] = useState('');
 
   const showMessage = (msg) => {
@@ -65,7 +66,9 @@ export default function ControlPanel({ isConnected }) {
   const handleCreateTask = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_BASE}/api/control/create-task?target=${taskTarget}&reward=${taskReward}&task_type=${taskType}`, {
+      const promptParam = taskType === 'ai_task' ? `&prompt=${encodeURIComponent(taskPrompt)}` : '';
+      const rewardSompi = Math.round(taskReward * 100_000_000);  // KAS -> sompi
+      const response = await fetch(`${API_BASE}/api/control/create-task?target=${taskTarget}&reward=${rewardSompi}&task_type=${taskType}${promptParam}`, {
         method: 'POST'
       });
       const data = await response.json();
@@ -110,7 +113,7 @@ export default function ControlPanel({ isConnected }) {
   };
 
   return (
-    <div style={styles.panel}>
+    <div style={styles.panel} className="ks-card">
       {/* Header */}
       <div style={styles.header}>
         <h3 style={styles.title}>Control Panel</h3>
@@ -126,25 +129,28 @@ export default function ControlPanel({ isConnected }) {
 
       {/* Main Controls */}
       <div style={styles.section}>
-        <button 
+        <button
           onClick={handlePauseResume}
           disabled={!isConnected}
+          className="ks-btn"
           style={{...styles.button, ...styles.primaryButton}}
         >
           {isPaused ? '▶️ Resume' : '⏸️ Pause'} Swarm
         </button>
 
-        <button 
+        <button
           onClick={() => setShowTaskForm(!showTaskForm)}
           disabled={!isConnected}
+          className="ks-btn"
           style={{...styles.button, ...styles.secondaryButton}}
         >
           ➕ Create Task
         </button>
 
-        <button 
+        <button
           onClick={handleReset}
           disabled={!isConnected}
+          className="ks-btn"
           style={{...styles.button, ...styles.dangerButton}}
         >
           🔄 Reset Swarm
@@ -161,8 +167,10 @@ export default function ControlPanel({ isConnected }) {
             <select
               value={taskType}
               onChange={(e) => setTaskType(e.target.value)}
+              className="ks-field"
               style={styles.select}
             >
+              <option value="ai_task">🤖 AI Task (LLM agent)</option>
               <option value="prime_finding">🔢 Prime Finding</option>
               <option value="hash_cracking">🔐 Hash Cracking</option>
               <option value="sorting">📊 Sorting</option>
@@ -170,7 +178,23 @@ export default function ControlPanel({ isConnected }) {
             </select>
           </div>
 
-          {taskType !== 'hash_cracking' && (
+          {taskType === 'ai_task' && (
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Prompt (the real work the agent does)</label>
+              <textarea
+                value={taskPrompt}
+                onChange={(e) => setTaskPrompt(e.target.value)}
+                rows={3}
+                className="ks-field"
+                style={{ ...styles.input, resize: 'vertical', fontFamily: 'inherit' }}
+                placeholder="e.g. Summarize this text / Write a Python function that…"
+                required
+              />
+              <span style={styles.hint}>An LLM-powered solver agent will complete this and a verifier agent will grade it.</span>
+            </div>
+          )}
+
+          {(taskType === 'prime_finding' || taskType === 'sorting' || taskType === 'data_search') && (
             <div style={styles.formGroup}>
               <label style={styles.label}>
                 {taskType === 'prime_finding' && 'Target Number'}
@@ -183,6 +207,7 @@ export default function ControlPanel({ isConnected }) {
                 onChange={(e) => setTaskTarget(Number(e.target.value))}
                 min={taskType === 'sorting' ? "50" : "1000"}
                 max={taskType === 'sorting' ? "500" : "50000"}
+                className="ks-field"
                 style={styles.input}
                 required
               />
@@ -195,25 +220,28 @@ export default function ControlPanel({ isConnected }) {
           )}
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>Reward (sompi)</label>
+            <label style={styles.label}>Reward (KAS)</label>
             <input
               type="number"
               value={taskReward}
               onChange={(e) => setTaskReward(Number(e.target.value))}
-              min="100"
-              max="10000"
+              min="0.2"
+              max="5"
+              step="0.1"
+              className="ks-field"
               style={styles.input}
               required
             />
           </div>
 
           <div style={styles.formButtons}>
-            <button type="submit" style={{...styles.button, ...styles.primaryButton}}>
+            <button type="submit" className="ks-btn" style={{...styles.button, ...styles.primaryButton}}>
               Create
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setShowTaskForm(false)}
+              className="ks-btn"
               style={{...styles.button, ...styles.secondaryButton}}
             >
               Cancel
@@ -225,9 +253,10 @@ export default function ControlPanel({ isConnected }) {
       {/* Agent Management */}
       <div style={styles.section}>
         <div style={styles.sectionTitle}>Agent Management</div>
-        <button 
+        <button
           onClick={handleAddAgent}
           disabled={!isConnected}
+          className="ks-btn"
           style={{...styles.button, ...styles.secondaryButton}}
         >
           🤖 Add Agent
@@ -244,6 +273,7 @@ export default function ControlPanel({ isConnected }) {
             <select
               value={newAgentRole}
               onChange={(e) => setNewAgentRole(e.target.value)}
+              className="ks-field"
               style={styles.select}
             >
               <option value="solver">Solver</option>
@@ -267,12 +297,13 @@ export default function ControlPanel({ isConnected }) {
           )}
 
           <div style={styles.formButtons}>
-            <button type="submit" style={{...styles.button, ...styles.primaryButton}}>
+            <button type="submit" className="ks-btn" style={{...styles.button, ...styles.primaryButton}}>
               Spawn
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setShowAgentForm(false)}
+              className="ks-btn"
               style={{...styles.button, ...styles.secondaryButton}}
             >
               Cancel
@@ -315,9 +346,10 @@ export default function ControlPanel({ isConnected }) {
           />
         </div>
 
-        <button 
+        <button
           onClick={handleUpdateFrequency}
           disabled={!isConnected || minInterval >= maxInterval}
+          className="ks-btn"
           style={{...styles.button, ...styles.secondaryButton, width: '100%'}}
         >
           Apply Frequency
@@ -329,19 +361,16 @@ export default function ControlPanel({ isConnected }) {
 
 const styles = {
   panel: {
-    position: 'absolute',
-    top: '20px',
-    right: '20px',
-    background: 'rgba(10, 10, 10, 0.9)',
-    backdropFilter: 'blur(10px)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: '16px',
+    background: 'rgba(17, 19, 24, 0.92)',
+    backdropFilter: 'blur(12px)',
+    border: '1px solid rgba(255, 255, 255, 0.10)',
+    borderRadius: '14px',
     padding: '20px',
-    minWidth: '300px',
-    maxWidth: '350px',
-    color: '#fff',
+    width: '100%',
+    color: '#f3f5f8',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    zIndex: 1000,
+    boxSizing: 'border-box',
+    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
   },
   header: {
     display: 'flex',
@@ -351,96 +380,107 @@ const styles = {
   },
   title: {
     margin: 0,
-    fontSize: '18px',
-    fontWeight: 'bold',
-    background: 'linear-gradient(135deg, #00ff88 0%, #0088ff 100%)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
+    color: '#7d8794',
   },
   disconnected: {
-    fontSize: '12px',
-    color: '#ff4444',
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#ff6b6b',
   },
   message: {
-    background: 'rgba(0, 255, 136, 0.1)',
+    background: 'rgba(0, 255, 136, 0.12)',
     border: '1px solid rgba(0, 255, 136, 0.3)',
-    borderRadius: '8px',
+    borderRadius: '10px',
     padding: '8px 12px',
     marginBottom: '12px',
     fontSize: '13px',
+    fontWeight: 600,
     color: '#00ff88',
+    animation: 'ks-fade-in 0.2s ease',
   },
   section: {
     marginBottom: '16px',
   },
   sectionTitle: {
-    fontSize: '14px',
-    fontWeight: '600',
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
     marginBottom: '12px',
-    color: '#ccc',
+    color: '#7d8794',
   },
   button: {
     width: '100%',
     padding: '10px 16px',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '10px',
     fontSize: '14px',
-    fontWeight: '600',
+    fontWeight: 600,
     cursor: 'pointer',
-    transition: 'all 0.2s',
     marginBottom: '8px',
     fontFamily: 'inherit',
   },
   primaryButton: {
     background: 'linear-gradient(135deg, #00ff88 0%, #00cc70 100%)',
-    color: '#000',
+    color: '#06140d',
+    boxShadow: '0 2px 12px rgba(0, 255, 136, 0.25)',
   },
   secondaryButton: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: '#fff',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
+    background: 'rgba(255, 255, 255, 0.08)',
+    color: '#f3f5f8',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
   },
   dangerButton: {
-    background: 'rgba(255, 68, 68, 0.2)',
-    color: '#ff4444',
+    background: 'rgba(255, 68, 68, 0.15)',
+    color: '#ff6b6b',
     border: '1px solid rgba(255, 68, 68, 0.3)',
   },
   form: {
-    background: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: '8px',
+    background: 'rgba(255, 255, 255, 0.04)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: '12px',
     padding: '16px',
     marginBottom: '16px',
+    animation: 'ks-fade-in 0.2s ease',
   },
   formTitle: {
-    fontSize: '14px',
-    fontWeight: '600',
-    marginBottom: '12px',
-    color: '#fff',
+    fontSize: '13px',
+    fontWeight: 700,
+    marginBottom: '14px',
+    color: '#f3f5f8',
   },
   formGroup: {
     marginBottom: '12px',
   },
   label: {
     display: 'block',
-    fontSize: '12px',
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '0.3px',
     marginBottom: '6px',
-    color: '#aaa',
+    color: '#9aa4b2',
   },
   input: {
     width: '100%',
-    padding: '8px 12px',
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    borderRadius: '6px',
-    color: '#fff',
+    padding: '9px 12px',
+    background: 'rgba(255, 255, 255, 0.08)',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+    borderRadius: '8px',
+    color: '#f3f5f8',
     fontSize: '14px',
     fontFamily: 'inherit',
+    boxSizing: 'border-box',
   },
   hint: {
     display: 'block',
     fontSize: '11px',
-    color: '#666',
-    marginTop: '4px',
+    color: '#7d8794',
+    marginTop: '5px',
+    lineHeight: 1.4,
   },
   formButtons: {
     display: 'flex',
@@ -456,14 +496,15 @@ const styles = {
   },
   select: {
     width: '100%',
-    padding: '8px 12px',
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    borderRadius: '6px',
-    color: '#fff',
+    padding: '9px 12px',
+    background: 'rgba(255, 255, 255, 0.08)',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+    borderRadius: '8px',
+    color: '#f3f5f8',
     fontSize: '14px',
     fontFamily: 'inherit',
     cursor: 'pointer',
+    boxSizing: 'border-box',
     appearance: 'none', // Remove default arrow in some browsers
   },
 };

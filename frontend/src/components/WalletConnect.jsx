@@ -72,8 +72,14 @@ const WalletConnect = () => {
     }
   };
 
+  const validCoord = !!coordinatorAddress && coordinatorAddress.startsWith('kaspatest:');
+  const isSelf = !!walletAddress && walletAddress === coordinatorAddress;
+
   const fundCoordinator = async () => {
-    if (!coordinatorAddress || !window.kasware) return;
+    if (!validCoord || !window.kasware) {
+      setStatus('⚠️ Coordinator address not configured (live mode only)');
+      return;
+    }
     setIsFunding(true);
     setStatus("Initiating transaction...");
     try {
@@ -98,7 +104,7 @@ const WalletConnect = () => {
   };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} className="ks-card">
       <div style={styles.header}>💰 Wallet</div>
 
       {/* Coordinator Balance — always visible */}
@@ -110,7 +116,7 @@ const WalletConnect = () => {
       </div>
 
       {!walletAddress ? (
-        <button onClick={connectWallet} style={styles.connectButton}>
+        <button onClick={connectWallet} className="ks-btn" style={styles.connectButton}>
           🔌 Connect KasWare
         </button>
       ) : (
@@ -124,13 +130,19 @@ const WalletConnect = () => {
             <span style={styles.value}>{balance !== null ? balance.toFixed(2) : '...'} KAS</span>
           </div>
 
-          <button 
-            onClick={fundCoordinator} 
-            disabled={isFunding || !coordinatorAddress}
-            style={{...styles.fundButton, opacity: isFunding ? 0.7 : 1}}
-          >
-            {isFunding ? '⏳ Sending...' : '💸 Fund Coordinator (50 KAS)'}
-          </button>
+          {isSelf ? (
+            <div style={styles.selfNote}>✓ This wallet is the coordinator — no funding needed.</div>
+          ) : (
+            <button
+              onClick={fundCoordinator}
+              disabled={isFunding || !validCoord}
+              className="ks-btn"
+              style={{...styles.fundButton, opacity: (isFunding || !validCoord) ? 0.5 : 1, cursor: validCoord ? 'pointer' : 'not-allowed'}}
+              title={validCoord ? '' : 'Coordinator address not configured (live mode only)'}
+            >
+              {isFunding ? '⏳ Sending...' : '💸 Fund Coordinator (50 KAS)'}
+            </button>
+          )}
         </div>
       )}
 
@@ -141,72 +153,86 @@ const WalletConnect = () => {
 
 const styles = {
   container: {
-    position: 'absolute',
-    top: '20px',
-    right: '390px',
-    zIndex: 1001,
-    background: 'rgba(10, 10, 10, 0.9)',
-    backdropFilter: 'blur(10px)',
-    borderRadius: '12px',
-    padding: '12px 14px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    width: '230px',
-    color: '#fff',
+    background: 'rgba(17, 19, 24, 0.92)',
+    backdropFilter: 'blur(12px)',
+    borderRadius: '14px',
+    padding: '16px',
+    border: '1px solid rgba(255, 255, 255, 0.10)',
+    width: '100%',
+    color: '#f3f5f8',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontSize: '12px',
+    boxSizing: 'border-box',
+    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
   },
   header: {
-    fontSize: '13px',
-    fontWeight: 'bold',
-    marginBottom: '8px',
-    color: '#fff',
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
+    marginBottom: '12px',
+    color: '#7d8794',
   },
   connectButton: {
     background: 'linear-gradient(135deg, #00ff88, #00cc6a)',
-    color: '#000',
+    color: '#06140d',
     border: 'none',
-    padding: '8px 14px',
-    borderRadius: '8px',
-    fontWeight: 'bold',
+    padding: '10px 14px',
+    borderRadius: '10px',
+    fontWeight: 600,
     cursor: 'pointer',
     width: '100%',
-    fontSize: '12px',
-    marginTop: '6px',
+    fontSize: '13px',
+    marginTop: '8px',
+    boxShadow: '0 2px 12px rgba(0, 255, 136, 0.25)',
   },
   walletInfo: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px',
+    gap: '8px',
   },
   row: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    fontSize: '11px',
+    fontSize: '12px',
     marginBottom: '2px',
   },
   label: {
-    color: '#888',
+    color: '#9aa4b2',
+    fontWeight: 500,
   },
   value: {
     color: '#00ff88',
-    fontWeight: 'bold',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
   },
   fundButton: {
     background: 'linear-gradient(135deg, #00ff88, #00cc6a)',
-    color: '#000',
+    color: '#06140d',
     border: 'none',
-    padding: '8px',
-    borderRadius: '8px',
-    fontWeight: 'bold',
+    padding: '10px',
+    borderRadius: '10px',
+    fontWeight: 600,
     cursor: 'pointer',
-    marginTop: '4px',
+    marginTop: '6px',
+    fontSize: '12px',
+    boxShadow: '0 2px 12px rgba(0, 255, 136, 0.25)',
+  },
+  selfNote: {
     fontSize: '11px',
+    color: '#00ff88',
+    background: 'rgba(0,255,136,0.10)',
+    border: '1px solid rgba(0,255,136,0.2)',
+    borderRadius: '8px',
+    padding: '8px 10px',
+    marginTop: '6px',
+    lineHeight: 1.4,
   },
   status: {
-    fontSize: '10px',
-    color: '#aaa',
-    marginTop: '6px',
+    fontSize: '11px',
+    color: '#9aa4b2',
+    marginTop: '10px',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',

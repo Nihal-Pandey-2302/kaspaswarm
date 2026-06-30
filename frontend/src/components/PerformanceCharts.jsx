@@ -71,10 +71,10 @@ const PerformanceCharts = ({ taskHistory, onClose }) => {
           responsive: true,
           maintainAspectRatio: false,
           animation: false,
-          plugins: { legend: { labels: { color: '#fff' } } },
+          plugins: { legend: { labels: { color: '#f3f5f8' } } },
           scales: {
-            x: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } },
-            y: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' }, beginAtZero: true }
+            x: { ticks: { color: '#9aa4b2' }, grid: { color: 'rgba(255,255,255,0.08)' } },
+            y: { ticks: { color: '#9aa4b2' }, grid: { color: 'rgba(255,255,255,0.08)' }, beginAtZero: true }
           }
         }
       });
@@ -98,7 +98,7 @@ const PerformanceCharts = ({ taskHistory, onClose }) => {
           labels: ['Completed', 'Failed', 'Active'],
           datasets: [{
             data: [completed, failed, taskHistory.length - completed - failed],
-            backgroundColor: ['#00ff88', '#ff4444', '#00aaff'],
+            backgroundColor: ['#00ff88', '#ff4444', '#4f9eff'],
             borderWidth: 0
           }]
         },
@@ -106,7 +106,7 @@ const PerformanceCharts = ({ taskHistory, onClose }) => {
           responsive: true,
           maintainAspectRatio: false,
           animation: false,
-          plugins: { legend: { position: 'right', labels: { color: '#fff' } } }
+          plugins: { legend: { position: 'right', labels: { color: '#f3f5f8' } } }
         }
       });
     }
@@ -128,12 +128,13 @@ const PerformanceCharts = ({ taskHistory, onClose }) => {
   }, []);
 
   return (
-    <div style={styles.container}>
+    <div style={styles.backdrop} onClick={onClose}>
+      <div style={styles.container} onClick={(e) => e.stopPropagation()}>
       <div style={styles.header}>
         <h2 style={styles.title}>Swarm Performance</h2>
-        <button onClick={onClose} style={styles.closeBtn}>×</button>
+        <button onClick={onClose} className="ks-icon-btn" style={styles.closeBtn}>×</button>
       </div>
-      
+
       <div style={styles.content}>
         <div style={styles.chartContainer}>
           <h3 style={styles.chartTitle}>Activity (Last 10 min)</h3>
@@ -149,53 +150,72 @@ const PerformanceCharts = ({ taskHistory, onClose }) => {
           </div>
         </div>
       </div>
+      </div>
     </div>
   );
 };
 
 const styles = {
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3000,
+    background: 'rgba(3, 5, 8, 0.6)',
+    backdropFilter: 'blur(2px)',
+    padding: '20px',
+    boxSizing: 'border-box',
+    animation: 'ks-fade-in 0.18s ease',
+  },
   container: {
-    position: 'absolute',
-    bottom: '20px',
-    left: '20px', 
-    width: '400px',
+    width: '460px',
+    maxWidth: 'calc(100vw - 40px)',
     height: 'auto',
-    maxHeight: '600px',
-    backgroundColor: 'rgba(10, 15, 20, 0.95)',
-    border: '1px solid rgba(0, 255, 136, 0.2)',
-    borderRadius: '12px',
+    maxHeight: '80vh',
+    backgroundColor: 'rgba(17, 19, 24, 0.97)',
+    border: '1px solid rgba(255, 255, 255, 0.10)',
+    borderRadius: '16px',
     display: 'flex',
     flexDirection: 'column',
-    zIndex: 2000,
-    backdropFilter: 'blur(10px)',
-    boxShadow: '0 5px 20px rgba(0,0,0,0.5)',
+    backdropFilter: 'blur(12px)',
+    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    color: '#f3f5f8',
+    overflow: 'hidden',
   },
   header: {
-    padding: '15px 20px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '16px 20px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.10)',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     background: 'rgba(0, 0, 0, 0.2)',
-    borderTopLeftRadius: '12px',
-    borderTopRightRadius: '12px',
+    borderTopLeftRadius: '14px',
+    borderTopRightRadius: '14px',
   },
   title: {
     margin: 0,
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#00aaff',
+    fontSize: '13px',
+    fontWeight: 700,
+    color: '#4f9eff',
     textTransform: 'uppercase',
     letterSpacing: '1px',
   },
   closeBtn: {
     background: 'none',
     border: 'none',
-    color: '#fff',
-    fontSize: '24px',
+    color: '#9aa4b2',
+    fontSize: '22px',
+    lineHeight: 1,
     cursor: 'pointer',
-    opacity: 0.7,
-    padding: '0 5px',
+    opacity: 0.8,
+    width: '30px',
+    height: '30px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     padding: '20px',
@@ -204,14 +224,17 @@ const styles = {
     gap: '20px',
   },
   chartContainer: {
-    background: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: '8px',
-    padding: '10px',
+    background: 'rgba(255, 255, 255, 0.04)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: '12px',
+    padding: '16px',
   },
   chartTitle: {
-    color: '#888',
-    fontSize: '12px',
-    margin: '0 0 10px 0',
+    color: '#7d8794',
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '1px',
+    margin: '0 0 12px 0',
     textTransform: 'uppercase',
   }
 };

@@ -2,16 +2,17 @@ import React, { useState, useEffect } from 'react';
 
 const TaskHistory = ({ tasks, onClose }) => {
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
+    <div style={styles.backdrop} onClick={onClose}>
+      <div style={styles.container} onClick={(e) => e.stopPropagation()}>
+        <div style={styles.header}>
         <h2 style={styles.title}>Task History</h2>
-        <button onClick={onClose} style={styles.closeBtn}>×</button>
+        <button onClick={onClose} className="ks-icon-btn" style={styles.closeBtn}>×</button>
       </div>
-      
-      <div style={styles.content}>
+
+      <div style={styles.content} className="ks-scroll">
         {tasks && tasks.length > 0 ? (
           [...tasks].reverse().map((task) => (
-            <div key={task.task_id} style={styles.taskCard}>
+            <div key={task.task_id} style={styles.taskCard} className="ks-list-item">
               <div style={styles.taskHeader}>
                 <span style={styles.taskId}>#{task.task_id}</span>
                 <span style={{
@@ -40,13 +41,23 @@ const TaskHistory = ({ tasks, onClose }) => {
                 {task.assigned_to && (
                   <div style={styles.detailRow}>
                     <span>Solver:</span>
-                    <span>{task.assigned_to.split('_')[1]}</span>
+                    <span>{task.assigned_to.split('_')[1] || task.assigned_to.slice(-6)}</span>
                   </div>
                 )}
+
+                {task.bid_amount ? (
+                  <div style={styles.detailRow}>
+                    <span>Winning bid:</span>
+                    <span style={styles.reward}>{task.bid_amount} sompi</span>
+                  </div>
+                ) : null}
                 
-                {task.solution && (
+                {task.solution !== undefined && task.solution !== null && task.solution !== '' && (
                   <div style={styles.solution}>
-                    Solution: {task.solution}
+                    <div style={styles.solutionLabel}>
+                      {task.task_type === 'ai_task' ? '🤖 Agent answer' : 'Solution'}
+                    </div>
+                    <div style={styles.solutionText}>{String(task.solution)}</div>
                   </div>
                 )}
               </div>
@@ -57,8 +68,12 @@ const TaskHistory = ({ tasks, onClose }) => {
             </div>
           ))
         ) : (
-          <div style={styles.emptyState}>No tasks recorded yet</div>
+          <div style={styles.emptyState}>
+            <div style={styles.emptyIcon}>📜</div>
+            <div>No tasks recorded yet</div>
+          </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -67,7 +82,7 @@ const TaskHistory = ({ tasks, onClose }) => {
 // Helper functions
 const getStatusColor = (status) => {
   switch (status) {
-    case 'created': return '#00aaff'; // Blue
+    case 'created': return '#4f9eff'; // Blue
     case 'assigned': return '#ffaa00'; // Orange
     case 'completed': return '#00ff88'; // Green
     case 'failed': return '#ff4444'; // Red
@@ -81,28 +96,44 @@ const getTaskTypeIcon = (type) => {
     case 'hash_cracking': return '🔐';
     case 'sorting': return '📊';
     case 'data_search': return '🔍';
+    case 'ai_task': return '🤖';
     default: return '📝';
   }
 };
 
 const styles = {
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3000,
+    background: 'rgba(3, 5, 8, 0.6)',
+    backdropFilter: 'blur(2px)',
+    padding: '20px',
+    boxSizing: 'border-box',
+    animation: 'ks-fade-in 0.18s ease',
+  },
   container: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: '320px',
-    height: '100vh',
-    backgroundColor: 'rgba(10, 15, 20, 0.95)',
-    borderLeft: '1px solid rgba(0, 255, 136, 0.2)',
+    width: '420px',
+    maxWidth: 'calc(100vw - 40px)',
+    height: '80vh',
+    maxHeight: '80vh',
+    backgroundColor: 'rgba(17, 19, 24, 0.97)',
+    border: '1px solid rgba(255, 255, 255, 0.10)',
+    borderRadius: '16px',
     display: 'flex',
     flexDirection: 'column',
-    zIndex: 2000,
-    backdropFilter: 'blur(10px)',
-    boxShadow: '-5px 0 20px rgba(0,0,0,0.5)',
+    backdropFilter: 'blur(12px)',
+    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    color: '#f3f5f8',
+    overflow: 'hidden',
   },
   header: {
     padding: '20px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.10)',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -110,8 +141,8 @@ const styles = {
   },
   title: {
     margin: 0,
-    fontSize: '18px',
-    fontWeight: '600',
+    fontSize: '13px',
+    fontWeight: 700,
     color: '#00ff88',
     textTransform: 'uppercase',
     letterSpacing: '1px',
@@ -119,24 +150,28 @@ const styles = {
   closeBtn: {
     background: 'none',
     border: 'none',
-    color: '#fff',
-    fontSize: '24px',
+    color: '#9aa4b2',
+    fontSize: '22px',
+    lineHeight: 1,
     cursor: 'pointer',
-    opacity: 0.7,
-    padding: '0 5px',
+    opacity: 0.8,
+    width: '30px',
+    height: '30px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     flex: 1,
     overflowY: 'auto',
-    padding: '15px',
+    padding: '16px',
   },
   taskCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: '8px',
-    padding: '12px',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: '12px',
+    padding: '14px',
     marginBottom: '12px',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
-    transition: 'transform 0.2s',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
   },
   taskHeader: {
     display: 'flex',
@@ -146,58 +181,80 @@ const styles = {
   },
   taskId: {
     fontFamily: 'monospace',
-    color: '#888',
+    color: '#9aa4b2',
     fontSize: '12px',
+    fontWeight: 600,
   },
   statusBadge: {
-    padding: '2px 8px',
-    borderRadius: '10px',
-    fontSize: '10px',
-    fontWeight: 'bold',
-    color: '#000',
+    padding: '3px 9px',
+    borderRadius: '20px',
+    fontSize: '9px',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    color: '#06140d',
     textTransform: 'uppercase',
   },
   description: {
     fontSize: '14px',
     marginBottom: '10px',
     lineHeight: '1.4',
+    color: '#f3f5f8',
   },
   details: {
     fontSize: '12px',
-    color: '#ccc',
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    padding: '8px',
-    borderRadius: '4px',
+    color: '#9aa4b2',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    padding: '10px',
+    borderRadius: '8px',
   },
   detailRow: {
     display: 'flex',
     justifyContent: 'space-between',
-    marginBottom: '4px',
+    marginBottom: '5px',
   },
   reward: {
-    color: '#ffd700',
-    fontWeight: 'bold',
+    color: '#ffc94d',
+    fontWeight: 700,
   },
   solution: {
     marginTop: '8px',
     paddingTop: '8px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-    fontFamily: 'monospace',
+    borderTop: '1px solid rgba(255, 255, 255, 0.10)',
+  },
+  solutionLabel: {
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase',
+    color: '#7d8794',
+    marginBottom: '4px',
+  },
+  solutionText: {
+    fontSize: '12px',
     color: '#00ff88',
-    wordBreak: 'break-all',
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+    maxHeight: '160px',
+    overflowY: 'auto',
   },
   timestamp: {
     fontSize: '10px',
-    color: '#666',
+    color: '#7d8794',
     marginTop: '8px',
     textAlign: 'right',
   },
   emptyState: {
     textAlign: 'center',
-    color: '#666',
-    marginTop: '50px',
-    fontStyle: 'italic',
-  }
+    color: '#9aa4b2',
+    marginTop: '60px',
+    fontSize: '13px',
+  },
+  emptyIcon: {
+    fontSize: '32px',
+    opacity: 0.25,
+    marginBottom: '12px',
+  },
 };
 
 export default TaskHistory;

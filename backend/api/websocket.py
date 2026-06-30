@@ -16,7 +16,7 @@ from typing import List
 import os
 
 from backend.swarm.protocol import SwarmOrchestrator
-from backend.kaspa.wallet import KaspaWallet
+from backend.kcore.wallet import KaspaWallet
 
 
 app = FastAPI(
@@ -103,14 +103,13 @@ async def get_coordinator_address():
 
 @app.get("/api/coordinator-balance")
 async def get_coordinator_balance():
-    """Get the coordinator's balance from the swarm state."""
+    """Get the coordinator's live balance (queried from chain, not stale state)."""
     try:
-        if orchestrator:
-            for agent in orchestrator.agents:
-                if agent.state.role == "coordinator" and agent.state.address:
-                    balance_sompi = agent.state.address.balance
-                    balance_kas = balance_sompi / 100_000_000
-                    return {"balance": balance_sompi, "balance_kas": f"{balance_kas:.2f}"}
+        addr = os.getenv("COORDINATOR_ADDRESS")
+        if addr and wallet:
+            balance_sompi = await wallet.get_balance(addr)
+            balance_kas = balance_sompi / 100_000_000
+            return {"balance": balance_sompi, "balance_kas": f"{balance_kas:.2f}"}
     except Exception:
         pass
     return {"balance": 0, "balance_kas": "0.00"}
@@ -159,9 +158,16 @@ async def shutdown():
     
     if orchestrator:
         await orchestrator.stop_swarm()
-    
+
     if wallet:
         await wallet.close()
+
+    # Close the shared LLM HTTP client so its connection pool isn't leaked.
+    try:
+        from backend.llm_client import get_llm
+        await get_llm().close()
+    except Exception:
+        pass
 
 
 @app.get("/")
@@ -201,7 +207,7 @@ async def get_stats():
     return orchestrator.get_swarm_stats()
 
 
-@app.post("/control/pause")
+@app.post("/api/control/pause")
 async def pause_swarm():
     """Pause all agent activities."""
     if not orchestrator:
@@ -210,11 +216,11 @@ async def pause_swarm():
             content={"error": "Swarm not initialized"}
         )
     
-    orchestrator.pause_swarm()
+    await orchestrator.pause()
     return {"status": "paused"}
 
 
-@app.post("/control/resume")
+@app.post("/api/control/resume")
 async def resume_swarm():
     """Resume all agent activities."""
     if not orchestrator:
@@ -223,30 +229,30 @@ async def resume_swarm():
             content={"error": "Swarm not initialized"}
         )
     
-    orchestrator.resume_swarm()
+    await orchestrator.resume()
     return {"status": "resumed"}
 
 
-@app.post("/control/create-task")
-async def create_task(target: int, reward: int, task_type: str = "prime_finding"):
+@app.post("/api/control/create-task")
+async def create_task(reward: int, target: int = 1000, task_type: str = "prime_finding", prompt: str = ""):
     """Manually create a task."""
     if not orchestrator:
         return JSONResponse(
             status_code=503,
             content={"error": "Swarm not initialized"}
         )
-    
-    if task_type not in ["prime_finding", "hash_cracking", "sorting", "data_search"]:
+
+    if task_type not in ["prime_finding", "hash_cracking", "sorting", "data_search", "ai_task"]:
         return JSONResponse(
             status_code=400,
             content={"error": "Invalid task type"}
         )
-    
-    result = await orchestrator.manual_task_creation(target, reward, task_type)
+
+    result = await orchestrator.manual_task_creation(target, reward, task_type, prompt)
     return result
 
 
-@app.post("/control/frequency")
+@app.post("/api/control/frequency")
 async def set_frequency(min_interval: float = 5.0, max_interval: float = 15.0):
     """Set task creation frequency."""
     if not orchestrator:
@@ -259,7 +265,7 @@ async def set_frequency(min_interval: float = 5.0, max_interval: float = 15.0):
     return {"status": "updated", "min": min_interval, "max": max_interval}
 
 
-@app.post("/control/reset")
+@app.post("/api/control/reset")
 async def reset_swarm():
     """Reset the swarm."""
     if not orchestrator:
@@ -272,7 +278,7 @@ async def reset_swarm():
     return {"status": "reset"}
 
 
-@app.post("/control/add-agent")
+@app.post("/api/control/add-agent")
 async def add_agent(data: dict):
     """Add a new agent to the swarm."""
     if not orchestrator:
@@ -284,7 +290,7 @@ async def add_agent(data: dict):
     return {"status": "success", "agent_id": agent_id}
 
 
-@app.post("/control/remove-agent")
+@app.post("/api/control/remove-agent")
 async def remove_agent(data: dict):
     """Remove an agent from the swarm."""
     if not orchestrator:

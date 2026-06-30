@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 export default function SwarmVisualization({ swarmData }) {
   const containerRef = useRef();
   const sceneRef = useRef();
   const cameraRef = useRef();
   const rendererRef = useRef();
+  const composerRef = useRef();
   const agentMeshesRef = useRef({});
   const transactionEdgesRef = useRef([]);
+  const processedTxRef = useRef(new Set()); // O(1) dedup of already-rendered txs
   const [selectedAgent, setSelectedAgent] = useState(null);
   const raycasterRef = useRef(new THREE.Raycaster());
   const mouseRef = useRef(new THREE.Vector2());
@@ -34,10 +39,22 @@ export default function SwarmVisualization({ swarmData }) {
     camera.lookAt(0, 0, 0);
 
     // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     containerRef.current.appendChild(renderer.domElement);
+
+    // Bloom post-processing for a neon "command-center" glow.
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      0.85,  // strength
+      0.5,   // radius
+      0.55   // threshold (lower = more elements glow)
+    );
+    composer.addPass(bloomPass);
+    composerRef.current = composer;
 
     // Better lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
@@ -55,9 +72,11 @@ export default function SwarmVisualization({ swarmData }) {
     backLight.position.set(0, 10, -20);
     scene.add(backLight);
 
-    // Grid for reference
-    const gridHelper = new THREE.GridHelper(100, 20, 0x00ff88, 0x333333);
+    // Subtle floor grid — dim, no harsh bright-green axes; fades into the dark.
+    const gridHelper = new THREE.GridHelper(160, 40, 0x1e4736, 0x141821);
     gridHelper.position.y = -5;
+    gridHelper.material.transparent = true;
+    gridHelper.material.opacity = 0.28;
     scene.add(gridHelper);
 
     // Store refs
@@ -107,16 +126,31 @@ export default function SwarmVisualization({ swarmData }) {
       camera.position.z = Math.cos(time) * 50;
       camera.lookAt(0, 0, 0);
 
-      // Update transaction edges - fade out old ones
+      // Update transaction edges - advance particles and fade out old ones.
+      // Iterate backwards so removals don't shift indices we still need to visit.
       const now = Date.now();
-      transactionEdgesRef.current.forEach((edge, index) => {
+      const maxAge = 3000; // 3 seconds
+      for (let i = transactionEdgesRef.current.length - 1; i >= 0; i--) {
+        const edge = transactionEdgesRef.current[i];
         const age = now - edge.timestamp;
-        const maxAge = 3000; // 3 seconds
-        
+
+        // Advance particle along the curve inside the single main loop
+        if (edge.particles && edge.curve && edge.progress < 1) {
+          edge.progress = Math.min(1, edge.progress + 0.02);
+          const point = edge.curve.getPoint(edge.progress);
+          edge.particles.position.copy(point);
+        }
+
         if (age > maxAge) {
           scene.remove(edge.line);
-          if (edge.particles) scene.remove(edge.particles);
-          transactionEdgesRef.current.splice(index, 1);
+          edge.line.geometry?.dispose();
+          edge.line.material?.dispose();
+          if (edge.particles) {
+            scene.remove(edge.particles);
+            edge.particles.geometry?.dispose();
+            edge.particles.material?.dispose();
+          }
+          transactionEdgesRef.current.splice(i, 1);
         } else {
           // Fade out
           const opacity = 1 - (age / maxAge);
@@ -125,9 +159,9 @@ export default function SwarmVisualization({ swarmData }) {
             edge.particles.material.opacity = opacity * 0.8;
           }
         }
-      });
+      }
 
-      renderer.render(scene, camera);
+      composer.render();
     };
     animate();
 
@@ -136,6 +170,7 @@ export default function SwarmVisualization({ swarmData }) {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      composer.setSize(window.innerWidth, window.innerHeight);
     };
     window.addEventListener('resize', handleResize);
 
@@ -147,6 +182,11 @@ export default function SwarmVisualization({ swarmData }) {
       if (containerRef.current && containerRef.current.contains(renderer.domElement)) {
         containerRef.current.removeChild(renderer.domElement);
       }
+      // Release GPU resources so remounts (HMR/route changes) don't leak WebGL
+      // contexts or the bloom pass's render targets.
+      composer.dispose?.();
+      renderer.dispose();
+      renderer.forceContextLoss?.();
     };
   }, []);
 
@@ -160,6 +200,12 @@ export default function SwarmVisualization({ swarmData }) {
     const coordinators = swarmData.agents.coordinators || [];
     const solvers = swarmData.agents.solvers || [];
     const allAgents = [...coordinators, ...solvers];
+
+    // Precompute each agent's index within its role group once — O(1) lookups
+    // below instead of findIndex per agent (which made the loop O(n^2)).
+    const idxMap = new Map();
+    coordinators.forEach((a, i) => idxMap.set(a.agent_id, i));
+    solvers.forEach((a, i) => idxMap.set(a.agent_id, i));
 
     allAgents.forEach((agent) => {
       const agentId = agent.agent_id;
@@ -175,19 +221,6 @@ export default function SwarmVisualization({ swarmData }) {
           shininess: 100,
         });
         mesh = new THREE.Mesh(geometry, material);
-
-        // Position agents
-        const radius = agent.role === 'coordinator' ? 15 : 25;
-        const agentsInRole = agent.role === 'coordinator' ? coordinators.length : solvers.length;
-        const angleOffset = agent.role === 'coordinator' ? 0 : Math.PI / 4;
-        const agentIndex = agent.role === 'coordinator' 
-          ? coordinators.findIndex(a => a.agent_id === agentId)
-          : solvers.findIndex(a => a.agent_id === agentId);
-        
-        const angle = (agentIndex / agentsInRole) * Math.PI * 2 + angleOffset;
-        mesh.position.x = Math.cos(angle) * radius;
-        mesh.position.z = Math.sin(angle) * radius;
-        mesh.position.y = 0;
 
         mesh.userData.agentId = agentId;
         mesh.userData.role = agent.role;
@@ -226,13 +259,27 @@ export default function SwarmVisualization({ swarmData }) {
         const texture = new THREE.CanvasTexture(canvas);
         const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
         const sprite = new THREE.Sprite(spriteMaterial);
-        sprite.scale.set(8, 2, 1);
-        sprite.position.y = 4;
+        sprite.scale.set(5, 1.25, 1);
+        sprite.position.y = 3.6;
+        sprite.material.depthWrite = false;
+        sprite.material.opacity = 0.85;
         mesh.add(sprite);
 
         scene.add(mesh);
         agentMeshesRef.current[agentId] = mesh;
       }
+
+      // Re-distribute positions on every update so the ring stays evenly spaced
+      // when agents are added/removed (otherwise a new agent lands on top of an
+      // existing one instead of redistributing the circle).
+      const roleArr = agent.role === 'coordinator' ? coordinators : solvers;
+      const radius = agent.role === 'coordinator' ? 15 : 25;
+      const angleOffset = agent.role === 'coordinator' ? 0 : Math.PI / 4;
+      const agentIndex = idxMap.get(agentId) ?? 0;
+      const angle = (agentIndex / Math.max(roleArr.length, 1)) * Math.PI * 2 + angleOffset;
+      mesh.position.x = Math.cos(angle) * radius;
+      mesh.position.z = Math.sin(angle) * radius;
+      mesh.position.y = 0;
 
       // Store current agent data
       mesh.userData.agentData = agent;
@@ -258,15 +305,46 @@ export default function SwarmVisualization({ swarmData }) {
         }
       }
 
-      // Highlight selected agent
-      if (selectedAgent && selectedAgent.agent_id === agentId) {
-        mesh.material.emissiveIntensity = 0.8;
-        if (mesh.userData.ring) {
-          mesh.userData.ring.material.opacity = 0.8;
-        }
-      }
     });
-  }, [swarmData, selectedAgent]);
+
+    // Reconcile: remove meshes for agents that no longer exist (after Terminate/Reset)
+    const currentAgentIds = new Set(allAgents.map((a) => a.agent_id));
+    Object.keys(agentMeshesRef.current).forEach((agentId) => {
+      if (currentAgentIds.has(agentId)) return;
+
+      const mesh = agentMeshesRef.current[agentId];
+      if (!mesh) {
+        delete agentMeshesRef.current[agentId];
+        return;
+      }
+
+      // Dispose child decorations (ring + label sprite) attached to the mesh
+      mesh.children.slice().forEach((child) => {
+        mesh.remove(child);
+        child.geometry?.dispose();
+        // Sprite labels carry a CanvasTexture on material.map
+        child.material?.map?.dispose();
+        child.material?.dispose();
+      });
+
+      scene.remove(mesh);
+      mesh.geometry?.dispose();
+      mesh.material?.dispose();
+
+      delete agentMeshesRef.current[agentId];
+    });
+  }, [swarmData]);
+
+  // Highlight the selected agent without re-running the heavy reconcile above.
+  // (Non-selected meshes are restored by the next swarmData update's active/idle
+  // pass, so no explicit reset is needed here.)
+  useEffect(() => {
+    if (!selectedAgent) return;
+    const mesh = agentMeshesRef.current[selectedAgent.agent_id];
+    if (!mesh) return;
+    mesh.material.emissiveIntensity = 0.8;
+    if (mesh.userData.ring) mesh.userData.ring.material.opacity = 0.8;
+  }, [selectedAgent]);
 
   // Update transaction edges
   useEffect(() => {
@@ -280,13 +358,13 @@ export default function SwarmVisualization({ swarmData }) {
     // Process new transactions
     transactions.forEach((tx) => {
       const txTimestamp = tx.timestamp * 1000; // Convert to milliseconds
-      
-      // Check if we've already processed this transaction
-      const alreadyExists = transactionEdgesRef.current.some(
-        edge => edge.txTimestamp === txTimestamp && edge.from === tx.from
-      );
-      
-      if (alreadyExists) return;
+
+      // O(1) dedup: skip transactions we've already rendered (was an O(n) scan of
+      // all live edges per tx -> quadratic during bursts).
+      const txKey = `${txTimestamp}|${tx.from}`;
+      if (processedTxRef.current.has(txKey)) return;
+      processedTxRef.current.add(txKey);
+      if (processedTxRef.current.size > 5000) processedTxRef.current.clear();
 
       // Get sender mesh
       const fromMesh = agentMeshesRef.current[tx.from];
@@ -359,23 +437,13 @@ export default function SwarmVisualization({ swarmData }) {
         particle.position.copy(fromMesh.position);
         scene.add(particle);
 
-        // Animate particle along curve
-        let progress = 0;
-        const animateParticle = () => {
-          if (progress < 1) {
-            progress += 0.02;
-            const point = curve.getPoint(progress);
-            particle.position.copy(point);
-            requestAnimationFrame(animateParticle);
-          } else {
-            scene.remove(particle);
-          }
-        };
-        animateParticle();
-
+        // Particle progress is advanced inside the single main animate() loop
+        // (see transaction-edge handling there) rather than its own RAF chain.
         transactionEdgesRef.current.push({
           line: tubeMesh,
           particles: particle,
+          curve: curve,
+          progress: 0,
           timestamp: Date.now(),
           txTimestamp: txTimestamp,
           from: tx.from,
@@ -480,18 +548,21 @@ export default function SwarmVisualization({ swarmData }) {
 
 const styles = {
   infoPanel: {
-    position: 'absolute',
-    bottom: '20px',
-    left: '20px',
-    background: 'rgba(10, 10, 10, 0.95)',
-    backdropFilter: 'blur(10px)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    borderRadius: '16px',
+    position: 'fixed',
+    top: '20px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    background: 'rgba(17, 19, 24, 0.95)',
+    backdropFilter: 'blur(12px)',
+    border: '1px solid rgba(0, 255, 136, 0.25)',
+    borderRadius: '14px',
     padding: '20px',
     minWidth: '320px',
-    color: '#fff',
+    maxWidth: 'min(420px, calc(100vw - 760px))',
+    color: '#f3f5f8',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    zIndex: 1000,
+    zIndex: 2500,
+    boxShadow: '0 16px 48px rgba(0, 0, 0, 0.6)',
   },
   infoPanelHeader: {
     display: 'flex',
@@ -499,20 +570,22 @@ const styles = {
     gap: '12px',
     marginBottom: '16px',
     paddingBottom: '12px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.10)',
   },
   roleBadge: {
     padding: '4px 12px',
     borderRadius: '12px',
     fontSize: '11px',
-    fontWeight: 'bold',
-    color: '#000',
+    fontWeight: 700,
+    color: '#06140d',
     textTransform: 'uppercase',
+    letterSpacing: '0.5px',
   },
   agentId: {
     flex: 1,
     fontSize: '16px',
-    fontWeight: '600',
+    fontWeight: 600,
+    color: '#f3f5f8',
   },
   closeBtn: {
     width: '28px',
@@ -520,7 +593,7 @@ const styles = {
     borderRadius: '50%',
     border: 'none',
     background: 'rgba(255, 255, 255, 0.1)',
-    color: '#fff',
+    color: '#f3f5f8',
     fontSize: '20px',
     cursor: 'pointer',
     display: 'flex',
@@ -531,7 +604,7 @@ const styles = {
   infoPanelContent: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '10px',
+    gap: '12px',
   },
   infoRow: {
     display: 'flex',
@@ -540,40 +613,44 @@ const styles = {
   },
   infoLabel: {
     fontSize: '13px',
-    color: '#888',
+    color: '#9aa4b2',
   },
   infoValue: {
     fontSize: '14px',
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: 600,
+    color: '#f3f5f8',
+    fontVariantNumeric: 'tabular-nums',
   },
   taskInfo: {
     marginTop: '12px',
     padding: '12px',
-    background: 'rgba(0, 255, 136, 0.1)',
+    background: 'rgba(0, 255, 136, 0.10)',
     borderRadius: '8px',
     border: '1px solid rgba(0, 255, 136, 0.2)',
   },
   taskHeader: {
-    fontSize: '12px',
+    fontSize: '11px',
     color: '#00ff88',
-    fontWeight: '600',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase',
     marginBottom: '6px',
   },
   taskDescription: {
     fontSize: '13px',
-    color: '#fff',
+    color: '#f3f5f8',
+    lineHeight: 1.4,
   },
   killButton: {
     width: '100%',
-    padding: '8px',
+    padding: '10px',
     marginTop: '12px',
-    background: 'rgba(255, 68, 68, 0.1)',
+    background: 'rgba(255, 68, 68, 0.15)',
     border: '1px solid rgba(255, 68, 68, 0.3)',
-    borderRadius: '8px',
-    color: '#ff4444',
-    fontSize: '12px',
-    fontWeight: '600',
+    borderRadius: '10px',
+    color: '#ff6b6b',
+    fontSize: '13px',
+    fontWeight: 600,
     cursor: 'pointer',
     transition: 'all 0.2s',
   },

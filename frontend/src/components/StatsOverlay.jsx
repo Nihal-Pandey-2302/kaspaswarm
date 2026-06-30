@@ -1,11 +1,20 @@
 export default function StatsOverlay({ swarmData, isConnected }) {
   if (!swarmData) {
     return (
-      <div style={styles.overlay}>
-        <div style={styles.card}>
-          <div style={styles.title}>🐝 KaspaSwarm</div>
-          <div style={styles.status}>
-            {isConnected ? '⚡ Initializing...' : '🔴 Connecting...'}
+      <div style={styles.stack}>
+        <div style={styles.card} className="ks-card">
+          <div style={styles.title}>🐝 Swarm Status</div>
+          <div style={styles.subtitle}>Decentralized AI Coordination</div>
+          <div style={styles.divider} />
+          <div style={styles.loadingRow}>
+            <div style={{
+              ...styles.indicator,
+              background: isConnected ? '#00ff88' : '#ffaa00',
+              animation: 'pulse 1.6s infinite',
+            }} />
+            <span style={styles.status}>
+              {isConnected ? 'Initializing swarm…' : 'Connecting…'}
+            </span>
           </div>
         </div>
       </div>
@@ -19,12 +28,11 @@ export default function StatsOverlay({ swarmData, isConnected }) {
     : 0;
 
   return (
-    <div style={styles.overlay}>
+    <div style={styles.stack}>
       {/* Main card */}
-      <div style={styles.card}>
-        <div style={styles.title}>🐝 KaspaSwarm</div>
-        <div style={styles.subtitle}>Decentralized AI Coordination</div>
-        
+      <div style={styles.card} className="ks-card">
+        <div style={styles.cardHeader}>Swarm Overview</div>
+
         <div style={styles.divider} />
         
         <div style={styles.stat}>
@@ -44,7 +52,7 @@ export default function StatsOverlay({ swarmData, isConnected }) {
         
         <div style={styles.stat}>
           <span style={styles.label}>Solvers:</span>
-          <span style={{...styles.value, color: '#0088ff'}}>{swarmData.solvers_count}</span>
+          <span style={{...styles.value, color: '#4f9eff'}}>{swarmData.solvers_count}</span>
         </div>
         
         <div style={styles.divider} />
@@ -68,17 +76,28 @@ export default function StatsOverlay({ swarmData, isConnected }) {
           <span style={styles.label}>Total Rewards:</span>
           <span style={styles.value}>{totalEarnings} sompi</span>
         </div>
+
+        {swarmData.escrow && (
+          <div style={styles.stat}>
+            <span style={styles.label}>Escrow:</span>
+            <span style={styles.value}>
+              <span style={{ color: '#00ff88' }}>{swarmData.escrow.released || 0}✓</span>
+              {' / '}
+              <span style={{ color: '#ff6b6b' }}>{swarmData.escrow.slashed || 0}⚔</span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Legend */}
-      <div style={{...styles.card, ...styles.legend}}>
+      <div style={{...styles.card, ...styles.legend}} className="ks-card">
         <div style={styles.legendTitle}>Legend</div>
         <div style={styles.legendItem}>
           <div style={{...styles.dot, background: '#00ff88'}} />
           <span>Coordinator (Posts Tasks)</span>
         </div>
         <div style={styles.legendItem}>
-          <div style={{...styles.dot, background: '#0088ff'}} />
+          <div style={{...styles.dot, background: '#4f9eff'}} />
           <span>Solver (Completes Tasks)</span>
         </div>
         <div style={styles.legendItem}>
@@ -87,51 +106,74 @@ export default function StatsOverlay({ swarmData, isConnected }) {
         </div>
       </div>
 
-      {/* Connection status */}
-      <div style={styles.connection}>
-        <div style={{...styles.indicator, background: isConnected ? '#00ff88' : '#ff4444'}} />
-        <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
-      </div>
+      {/* Reputation leaderboard — the economy at a glance */}
+      {solvers.length > 0 && (
+        <div style={{...styles.card, ...styles.legend}} className="ks-card">
+          <div style={styles.legendTitle}>Top Agents · Reputation</div>
+          {[...solvers]
+            .sort((a, b) => (b.reputation || 0) - (a.reputation || 0))
+            .map((s) => (
+              <div key={s.agent_id} style={styles.repRow}>
+                <span style={styles.repName}>{(s.agent_id || '').replace('solver_', 'S')}</span>
+                <span style={styles.repTrack}>
+                  <span style={{ ...styles.repFill, width: `${Math.min(100, (s.reputation || 0) / 200 * 100)}%` }} />
+                </span>
+                <span style={styles.repVal}>{Math.round(s.reputation || 0)}</span>
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
 
 const styles = {
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    padding: '20px',
-    pointerEvents: 'none',
-    zIndex: 1000,
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+    width: '100%',
   },
   card: {
-    background: 'rgba(10, 10, 10, 0.85)',
-    backdropFilter: 'blur(10px)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: '16px',
-    padding: '24px',
-    color: '#ffffff',
+    background: 'rgba(17, 19, 24, 0.92)',
+    backdropFilter: 'blur(12px)',
+    border: '1px solid rgba(255, 255, 255, 0.10)',
+    borderRadius: '14px',
+    padding: '18px',
+    color: '#f3f5f8',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    minWidth: '280px',
-    marginBottom: '16px',
+    width: '100%',
+    boxSizing: 'border-box',
+    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+  },
+  cardHeader: {
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
+    color: '#7d8794',
   },
   title: {
-    fontSize: '28px',
-    fontWeight: 'bold',
+    fontSize: '20px',
+    fontWeight: 800,
+    letterSpacing: '-0.5px',
     marginBottom: '4px',
-    background: 'linear-gradient(135deg, #00ff88 0%, #0088ff 100%)',
+    background: 'linear-gradient(135deg, #00ff88 0%, #4f9eff 100%)',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
   },
   subtitle: {
-    fontSize: '12px',
-    color: '#888',
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
+    color: '#7d8794',
     marginBottom: '16px',
   },
   divider: {
     height: '1px',
-    background: 'rgba(255, 255, 255, 0.1)',
+    background: 'rgba(255, 255, 255, 0.10)',
     margin: '16px 0',
   },
   stat: {
@@ -141,33 +183,42 @@ const styles = {
     marginBottom: '12px',
   },
   label: {
-    fontSize: '14px',
-    color: '#aaa',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#9aa4b2',
   },
   value: {
-    fontSize: '16px',
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: '14px',
+    fontWeight: 700,
+    color: '#f3f5f8',
+    fontFamily: 'monospace',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  loadingRow: {
+    display: 'flex',
+    alignItems: 'center',
   },
   status: {
-    fontSize: '14px',
+    fontSize: '13px',
     color: '#ffaa00',
-    marginTop: '8px',
+    fontWeight: 600,
   },
   legend: {
-    fontSize: '14px',
+    fontSize: '13px',
   },
   legendTitle: {
-    fontSize: '14px',
-    fontWeight: 'bold',
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '1px',
+    textTransform: 'uppercase',
     marginBottom: '12px',
-    color: '#fff',
+    color: '#7d8794',
   },
   legendItem: {
     display: 'flex',
     alignItems: 'center',
     marginBottom: '8px',
-    color: '#ccc',
+    color: '#9aa4b2',
   },
   dot: {
     width: '12px',
@@ -175,19 +226,39 @@ const styles = {
     borderRadius: '50%',
     marginRight: '8px',
   },
-  connection: {
-    position: 'absolute',
-    bottom: '20px',
-    right: '20px',
-    background: 'rgba(10, 10, 10, 0.85)',
-    backdropFilter: 'blur(10px)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: '24px',
-    padding: '8px 16px',
+  repRow: {
     display: 'flex',
     alignItems: 'center',
+    gap: '8px',
+    marginBottom: '8px',
+  },
+  repName: {
     fontSize: '12px',
-    color: '#ccc',
+    fontWeight: 700,
+    color: '#cbd5e1',
+    width: '28px',
+  },
+  repTrack: {
+    flex: 1,
+    height: '6px',
+    borderRadius: '3px',
+    background: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  repFill: {
+    display: 'block',
+    height: '100%',
+    borderRadius: '3px',
+    background: 'linear-gradient(90deg, #00ff88, #4f9eff)',
+  },
+  repVal: {
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#f3f5f8',
+    width: '30px',
+    textAlign: 'right',
+    fontFamily: 'monospace',
+    fontVariantNumeric: 'tabular-nums',
   },
   indicator: {
     width: '8px',

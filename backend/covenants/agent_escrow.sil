@@ -1,0 +1,52 @@
+// agent_escrow.sil — KaspaSwarm trustless task settlement covenant
+//
+// STATUS: DRAFT. SilverScript is experimental and runs on Kaspa Testnet-12 only
+// (KIP-10/KIP-17 introspection opcodes). This must be compiled with the
+// silverscript compiler (github.com/kaspanet/silverscript) and validated on TN12
+// before use. Syntax follows the CashScript-inspired SilverScript model; treat
+// opcode/intrinsic names as provisional until checked against the compiler.
+//
+// PURPOSE
+// Replaces the trusted-coordinator payout with on-chain, conditional settlement:
+//   - The coordinator locks the task REWARD in this covenant at assignment.
+//   - The winning solver locks a STAKE (collateral) into the same covenant.
+//   - On a verified solution, funds are released: reward + stake -> solver.
+//   - On timeout or failed verification, the reward is refunded to the
+//     coordinator and the solver's stake is SLASHED (to the coordinator).
+//
+// This makes the economic model already implemented in-protocol (bidding,
+// reputation, soft-slash) trustless and enforced by the chain itself.
+
+contract AgentEscrow(
+    pubkey coordinator,        // posts the task, funds the reward
+    pubkey solver,             // assigned worker, posts the stake
+    pubkey verifier,           // attests the result (coordinator or an oracle)
+    int    rewardAmount,       // sompi locked by the coordinator
+    int    stakeAmount,        // sompi locked by the solver as collateral
+    int    deadlineDaaScore    // covenant timeout in DAA score
+) {
+    // Happy path: the verifier signs off on an accepted, verified solution.
+    // Releases reward + returned stake to the solver in a single output.
+    function settle(sig verifierSig) {
+        require(checkSig(verifierSig, verifier));
+        // Introspection: ensure the spending tx pays (reward + stake) to the solver.
+        require(tx.outputs[0].lockingBytecode == new LockingBytecode(solver));
+        require(tx.outputs[0].value == rewardAmount + stakeAmount);
+    }
+
+    // Refund/slash path: after the deadline with no accepted solution.
+    // Reward returns to the coordinator; the solver's stake is slashed to it too.
+    function timeoutSlash(sig coordinatorSig) {
+        require(checkSig(coordinatorSig, coordinator));
+        require(tx.locktime >= deadlineDaaScore);
+        require(tx.outputs[0].lockingBytecode == new LockingBytecode(coordinator));
+        require(tx.outputs[0].value == rewardAmount + stakeAmount); // slash stake to coordinator
+    }
+
+    // Mutual cancel: coordinator + solver agree to unwind (reward->coordinator,
+    // stake->solver) before any work is accepted.
+    function cancel(sig coordinatorSig, sig solverSig) {
+        require(checkSig(coordinatorSig, coordinator));
+        require(checkSig(solverSig, solver));
+    }
+}

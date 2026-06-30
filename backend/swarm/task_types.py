@@ -14,6 +14,23 @@ class TaskType(Enum):
     HASH_CRACKING = "hash_cracking"
     SORTING = "sorting"
     DATA_SEARCH = "data_search"
+    AI_TASK = "ai_task"  # real cognitive work performed by an LLM-powered agent
+
+
+# Sample prompts for auto-generated AI tasks (used when an LLM backend is configured).
+AI_TASK_PROMPTS = [
+    "Summarize in one sentence why a blockDAG can confirm transactions faster than a linear blockchain.",
+    "Write a Python function `is_palindrome(s)` that ignores case and spaces.",
+    "Classify the sentiment of this review as POSITIVE or NEGATIVE: 'Fast, cheap, and it just works.'",
+    "In two sentences, explain what an autonomous AI agent is to a non-technical person.",
+    "Extract the three key nouns from: 'Agents coordinate tasks and settle payments on Kaspa.'",
+    "Suggest a concise name for a decentralized marketplace where AI agents hire each other.",
+]
+
+
+def get_ai_prompt() -> str:
+    """Pick a sample AI-task prompt."""
+    return random.choice(AI_TASK_PROMPTS)
 
 class Task:
     """Represents a computational task in the swarm."""
@@ -39,22 +56,35 @@ class Task:
         # State
         self.bids: List[Dict] = []
         self.assigned_to: str = None
+        self.winning_bid: int = None  # amount actually paid (the winning bid)
         self.completed: bool = False
         self.solution: Any = None
     
-    def add_bid(self, agent_id: str, amount: int):
-        """Record a bid from an agent."""
+    def add_bid(self, agent_id: str, amount: int, reputation: float = 100.0):
+        """Record a bid from an agent (keeps only the best/latest bid per agent)."""
+        amount = max(1, int(amount))
+        # Dedup: replace an existing bid from the same agent rather than stacking.
+        for b in self.bids:
+            if b["agent"] == agent_id:
+                b["amount"] = amount
+                b["reputation"] = reputation
+                return
         self.bids.append({
             "agent": agent_id,
             "amount": amount,
-            "timestamp": float(random.uniform(0, 1)) # simulated timestamp offset
+            "reputation": float(reputation),
         })
-    
+
     def get_best_bid(self) -> Dict:
-        """Get the lowest bid."""
+        """Reputation-weighted reverse auction: pick the best reputation-per-cost.
+
+        score = reputation / bid_amount — rewards agents that are both cheap AND
+        trustworthy, instead of naively picking the lowest (or least-skilled) bid.
+        """
         if not self.bids:
             return None
-        return min(self.bids, key=lambda x: x["amount"])
+        # sqrt(reputation) softens reputation's pull so a streak doesn't monopolize.
+        return max(self.bids, key=lambda x: (x.get("reputation", 100.0) ** 0.5) / max(1, x["amount"]))
     
     def is_expired(self) -> bool:
         """Check if deadline has passed (with 5s grace period)."""

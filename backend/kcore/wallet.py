@@ -24,23 +24,38 @@ import os
 import sys
 import struct
 
-# Add backend directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from bech32_util import encode_address, decode_address
+# Absolute imports (rooted at the project) — no reliance on a sys.path side effect.
+from backend.bech32_util import encode_address, decode_address
 
-from kaspa.sighash import (
+from backend.kcore.sighash import (
     Transaction, TransactionInput, TransactionOutput,
     Outpoint, ScriptPublicKey, UtxoEntry,
     calc_schnorr_signature_hash, make_p2pk_script,
     SIG_HASH_ALL, NATIVE_SUBNETWORK_ID
 )
-from kaspa.schnorr import build_signature_script, get_public_key
-from kaspa.wrpc_client import KaspaRpcClient
+from backend.kcore.schnorr import build_signature_script, get_public_key
+from backend.kcore.wrpc_client import KaspaRpcClient
 
 
 # Minimum fee per transaction in sompi (0.0001 KAS per UTXO typically)
 MIN_FEE_PER_INPUT = 10_000  # 0.0001 KAS
 DEFAULT_FEE = 10_000        # Base fee for simple tx
+
+# Dust floor: outputs below this are rejected by the node as non-standard.
+# The swarm's internal reward/bid units are tiny, so on-chain amounts are floored
+# to a valid minimum (0.2 KAS) — otherwise every live broadcast fails as dust.
+MIN_OUTPUT = 20_000_000     # 0.2 KAS
+
+
+def tx_failed(tx_id) -> bool:
+    """Single source of truth for send_transaction's failure contract.
+
+    send_transaction returns a tx-id string on success, or a 'failed*' sentinel
+    string on failure. Callers must use this helper rather than re-checking the
+    prefix, so a future change to the failure signal can't be silently treated
+    as success in one of several call sites.
+    """
+    return (not isinstance(tx_id, str)) or tx_id.startswith("failed")
 
 
 @dataclass
@@ -99,14 +114,21 @@ class KaspaWallet:
         
         return connected
 
-    async def create_address(self) -> KaspaAddress:
-        """Generate new Kaspa address (SECP256k1) or load from Env."""
+    async def create_address(self, seed_id: Optional[str] = None) -> KaspaAddress:
+        """Generate/load a Kaspa address.
+
+        - mock mode: deterministic fake address.
+        - coordinator (first call, env creds present): the funded env address.
+        - other live agents: a key derived deterministically from AGENT_MASTER_SEED
+          + seed_id, so each agent keeps the SAME address across restarts and can
+          be funded once. Falls back to a random key if no seed is configured.
+        """
         # Check for injected credentials (for Coordinator)
         env_addr = os.getenv("COORDINATOR_ADDRESS")
         env_key = os.getenv("COORDINATOR_PRIVATE_KEY")
-        
+
         if env_addr and env_key and not self.mock_mode:
-            if self._address_counter == 0: 
+            if self._address_counter == 0:
                 self._address_counter += 1
                 # Derive public key from private key
                 pk_bytes = bytes.fromhex(env_key)
@@ -127,19 +149,21 @@ class KaspaWallet:
                 public_key="mock_pubkey",
                 balance=10_000_000
             )
-        
-        # 1. Generate Private Key (SECP256k1)
-        sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1)
-        vk = sk.verifying_key
-        private_key_hex = sk.to_string().hex()
-        
-        # 2. Extract X-only public key (32 bytes) for Schnorr P2PK
-        x_only_pub_key = vk.to_string()[:32]
-        
-        # 3. Encode using CashAddr (Kaspa's native format)
-        address = encode_address("kaspatest", "pk", x_only_pub_key)
-        
+
         self._address_counter += 1
+
+        # Live mode: derive a stable key per agent so addresses persist and can
+        # be funded once (see fund_agents.py).
+        master_seed = os.getenv("AGENT_MASTER_SEED")
+        if master_seed and seed_id:
+            private_key_hex = self.derive_private_key(master_seed, seed_id)
+        else:
+            # No seed configured — fall back to a random (ephemeral) key.
+            private_key_hex = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1).to_string().hex()
+
+        x_only_pub_key = get_public_key(bytes.fromhex(private_key_hex))
+        address = encode_address("kaspatest", "pk", x_only_pub_key)
+
         return KaspaAddress(
             address=address,
             private_key=private_key_hex,
@@ -147,11 +171,25 @@ class KaspaWallet:
             balance=0
         )
 
+    @staticmethod
+    def derive_private_key(master_seed: str, seed_id: str) -> str:
+        """Deterministically derive an agent private key (hex) from a seed + id."""
+        return hashlib.sha256(f"{master_seed}:{seed_id}".encode()).hexdigest()
+
     async def get_balance(self, address: str) -> int:
         """Get balance in sompi."""
         if self.mock_mode:
             return 10_000_000
-        
+
+        # LIVE: query via the SDK transport (Resolver -> community node).
+        if os.getenv("KASPA_TRANSPORT", "sdk").lower() == "sdk":
+            try:
+                from backend.kcore.sdk_transport import get_transport
+                return await get_transport().get_balance(address)
+            except Exception as e:
+                print(f"⚠️ SDK balance error: {e}")
+                return 0
+
         # Try wRPC first
         if await self._ensure_rpc():
             try:
@@ -243,6 +281,7 @@ class KaspaWallet:
         amount: int,
         change_address: str,
         change_amount: int,
+        payload: bytes = b'',
     ) -> tuple:
         """
         Build a Transaction object from UTXOs and desired outputs.
@@ -313,9 +352,9 @@ class KaspaWallet:
             lock_time=0,
             subnetwork_id=NATIVE_SUBNETWORK_ID,
             gas=0,
-            payload=b''
+            payload=payload
         )
-        
+
         return tx, utxo_entries
 
     def _sign_transaction(self, tx: Transaction, utxo_entries: List[UtxoEntry], private_key_hex: str) -> Transaction:
@@ -376,7 +415,7 @@ class KaspaWallet:
             "payload": tx.payload.hex() if tx.payload else ""
         }
 
-    async def send_transaction(self, from_addr: KaspaAddress, to_addr: str, amount: int) -> str:
+    async def send_transaction(self, from_addr: KaspaAddress, to_addr: str, amount: int, payload: bytes = b'') -> str:
         """
         Send a real Kaspa transaction.
         
@@ -399,7 +438,18 @@ class KaspaWallet:
         if self.mock_mode:
             await asyncio.sleep(0.5)
             return f"tx_{secrets.token_hex(8)}"
-            
+
+        # Floor to the dust minimum so the node accepts the output.
+        amount = max(int(amount), MIN_OUTPUT)
+
+        # LIVE transport: official Kaspa SDK + Resolver (community node), validated
+        # end-to-end on testnet-10. Set KASPA_TRANSPORT=handrolled for the
+        # hand-rolled wRPC path below instead.
+        if os.getenv("KASPA_TRANSPORT", "sdk").lower() == "sdk":
+            from backend.kcore.sdk_transport import get_transport
+            return await get_transport().send(
+                from_addr.private_key, from_addr.address, to_addr, amount, payload)
+
         try:
             print(f"📤 Building tx: {amount} sompi from {from_addr.address[:20]}... → {to_addr[:20]}...")
             
@@ -413,6 +463,11 @@ class KaspaWallet:
             
             # 2. Select UTXOs
             selected, total_input, change, fee = self._select_utxos(utxos, amount, DEFAULT_FEE)
+            # A sub-dust change output is non-standard and gets the whole tx rejected.
+            # Fold any dust change into the fee instead of emitting a tiny output.
+            if 0 < change < MIN_OUTPUT:
+                fee += change
+                change = 0
             print(f"   Selected {len(selected)} UTXOs, total={total_input}, fee={fee}, change={change}")
             
             # 3. Build transaction
@@ -421,7 +476,8 @@ class KaspaWallet:
                 to_address=to_addr,
                 amount=amount,
                 change_address=from_addr.address,
-                change_amount=change
+                change_amount=change,
+                payload=payload
             )
             
             # 4. Sign all inputs

@@ -10,8 +10,11 @@ httpx>=0.27.0
 # Type checking and data validation
 pydantic>=2.7.0
 
-# Kaspa integration (will use HTTP RPC client)
-# Note: Using httpx for direct RPC calls as kaspa-wallet library may not be available
+# Kaspa integration
+# Official Kaspa Python SDK — Resolver (community-node auto-connect), RpcClient,
+# transaction building/signing, ScriptBuilder for covenants. Powers the live
+# on-chain transport; the hand-rolled crypto stack remains for reference/depth.
+kaspa==1.0.0
 
 # Data handling
 dataclasses-json==0.6.3

@@ -9,15 +9,18 @@ This is the central controller that:
 """
 
 import asyncio
-from typing import List, Dict
+import os
+from typing import List, Dict, Optional
 from collections import deque
 import time
 
 from backend.agents.base_agent import BaseAgent
 from backend.agents.coordinator_agent import CoordinatorAgent
 from backend.agents.solver_agent import SolverAgent
-from backend.kaspa.wallet import KaspaWallet
-from backend.kaspa.transaction import SwarmMessage, MessageType
+from backend.kcore.wallet import KaspaWallet
+from backend.kcore.transaction import SwarmMessage, MessageType
+from backend.kcore.chain_watcher import ChainWatcher
+from backend.kcore.covenant import InProtocolEscrow
 
 
 class SwarmOrchestrator:
@@ -41,16 +44,24 @@ class SwarmOrchestrator:
         self.mock_mode = mock_mode
         self.running = False
         self.transaction_history = deque(maxlen=30)  # Last 30 transactions
-        self.task_history: List[Dict] = []  # All tasks with lifecycle
+        self.task_history: List[Dict] = []  # Recent tasks (bounded by max_task_history)
+        self.task_index: Dict[int, Dict] = {}  # task_id -> entry, for O(1) lookup
+        self.max_task_history = 200
         
         # Message routing for mock mode
         self.message_relay_enabled = mock_mode
+        # Live mode: the SDK transport (preferred) or ChainWatcher delivers
+        # messages decoded from real blocks.
+        self.chain_watcher: Optional[ChainWatcher] = None
+        self.sdk = None  # SdkTransport in live mode
+        # Escrow / stake-slash layer (in-protocol now; covenant-backed on TN12)
+        self.escrow = InProtocolEscrow()
         
     def log_task_event(self, task_id: int, event: str, data: Dict):
         """Log task lifecycle events for history panel."""
-        # Find existing task or create new entry
-        task_entry = next((t for t in self.task_history if t["task_id"] == task_id), None)
-        
+        # Find existing task (O(1)) or create new entry
+        task_entry = self.task_index.get(task_id)
+
         if not task_entry:
             task_entry = {
                "task_id": task_id,
@@ -59,6 +70,11 @@ class SwarmOrchestrator:
                 "created_at": time.time(),
             }
             self.task_history.append(task_entry)
+            self.task_index[task_id] = task_entry
+            # Bound memory: drop the oldest entry once over the cap
+            if len(self.task_history) > self.max_task_history:
+                oldest = self.task_history.pop(0)
+                self.task_index.pop(oldest["task_id"], None)
         
         # Update task entry
         task_entry["status"] = event
@@ -116,59 +132,46 @@ class SwarmOrchestrator:
         print("=" * 60)
     
     async def start_swarm(self):
-        """Start all agents and message relay."""
+        """Start all agents and the coordination transport."""
         self.running = True
-        
-        # Start all agent decision loops
+
+        # Live mode: read coordination messages off the chain (Kaspa is the bus)
+        # via the SDK transport (Resolver -> community node). Falls back to the
+        # hand-rolled ChainWatcher if the SDK path can't start.
+        if not self.mock_mode:
+            try:
+                from backend.kcore.sdk_transport import get_transport
+                self.sdk = get_transport()
+                await self.sdk.subscribe(self._on_chain_message)
+            except Exception as e:
+                print(f"⚠️ SDK transport subscribe failed ({e}); falling back to ChainWatcher")
+                ws_url = os.getenv("KASPA_WS_URL", "ws://127.0.0.1:18210")
+                self.chain_watcher = ChainWatcher(ws_url, self._on_chain_message)
+                await self.chain_watcher.start()
+
+        # Start all agent decision loops. (Mock-mode delivery happens synchronously
+        # in BaseAgent.send_message -> deliver_message; no relay loop needed.)
         agent_tasks = [asyncio.create_task(agent.start()) for agent in self.agents]
-        
-        # Start message relay if in mock mode
-        if self.message_relay_enabled:
-            relay_task = asyncio.create_task(self.message_relay_loop())
-            agent_tasks.append(relay_task)
-        
+
         await asyncio.gather(*agent_tasks)
-    
-    async def message_relay_loop(self):
+
+    def record_message(self, message: SwarmMessage, sender: BaseAgent,
+                       tx_id: str = "", onchain: bool = False):
+        """Record a message for the UI (history + lifecycle log).
+
+        Always called at send time, regardless of transport, so the
+        visualization reflects activity immediately. Delivery to recipients is
+        separate (see deliver_message) and, in live mode, is driven by the
+        ChainWatcher once the message is observed on-chain.
         """
-        In mock mode, simulate blockchain message passing.
-        Intercept agent send_message calls and deliver to recipients.
-        """
-        print("📡 Message relay active (mock mode)")
-        
-        while self.running:
-            await asyncio.sleep(0.1)
-            
-            # In mock mode, we need to intercept transactions
-            # This is handled by having agents send messages through the swarm
-            # For simplicity, we'll use a broadcast approach where certain
-            # message types are delivered to all relevant agents
-    
-    async def broadcast_message(self, message: SwarmMessage, sender: BaseAgent):
-        """Broadcast a message to all relevant agents."""
-        # Record transaction for edge visualization
         task_type = None
         if message.msg_type == MessageType.TASK_ANNOUNCEMENT:
             task_type = message.data.get("task_type")
-            
-        # Log task lifecycle events
-        if message.msg_type == MessageType.TASK_ANNOUNCEMENT:
             self.log_task_event(message.task_id, "created", {
                 "description": message.data.get("description", ""),
                 "reward": message.data.get("reward", 0),
                 "task_type": message.data.get("task_type", ""),
                 "coordinator": sender.state.agent_id
-            })
-            
-        elif message.msg_type == MessageType.TASK_BID:
-            # We don't create a full event for every bid to avoid spam, 
-            # but we could update the task status if we wanted to show "bidding in progress"
-            pass
-            
-        elif message.msg_type == MessageType.SOLUTION_SUBMISSION:
-            self.log_task_event(message.task_id, "completed", {
-                "solution": message.data.get("solution", ""),
-                "solver": sender.state.agent_id
             })
 
         self.transaction_history.append({
@@ -177,32 +180,51 @@ class SwarmOrchestrator:
             "from_address": sender.state.address.address if sender.state.address else "",
             "msg_type": message.msg_type.value,
             "task_id": message.task_id,
-            "task_type": task_type
+            "task_type": task_type,
+            "tx_id": tx_id,
+            "onchain": onchain,
         })
-        
-        if message.msg_type == MessageType.TASK_ANNOUNCEMENT:
-            # Deliver to all solver agents
-            for agent in self.agents:
-                if agent.state.role == "solver" and agent != sender:
-                    await agent.receive_message(message)
-        
-        elif message.msg_type == MessageType.TASK_BID:
-            # Deliver to the coordinator who posted the task
-            for agent in self.agents:
-                if (agent.state.role == "coordinator" and 
-                    agent.state.address and 
-                    message.sender != agent.state.address.address):
-                    await agent.receive_message(message)
-        
-        elif message.msg_type == MessageType.SOLUTION_SUBMISSION:
-            # Deliver to coordinator
-            for agent in self.agents:
-                if agent.state.role == "coordinator":
-                    await agent.receive_message(message)
+
+    async def deliver_message(self, message: SwarmMessage,
+                              to_address: Optional[str] = None,
+                              exclude_address: Optional[str] = None):
+        """Route a message to the relevant agent(s) by type.
+
+        Broadcasts (announcement) fan out by role; directed messages
+        (assignment) are routed to the agent at `to_address`.
+        """
+        mt = message.msg_type
+
+        if mt == MessageType.TASK_ANNOUNCEMENT:
+            targets = [a for a in self.agents if a.state.role == "solver"]
+        elif mt in (MessageType.TASK_BID, MessageType.SOLUTION_SUBMISSION):
+            targets = [a for a in self.agents if a.state.role == "coordinator"]
+        elif mt == MessageType.TASK_ASSIGNMENT:
+            targets = [a for a in self.agents
+                       if a.state.address and a.state.address.address == to_address]
+        else:
+            targets = []
+
+        for agent in targets:
+            addr = agent.state.address.address if agent.state.address else None
+            if exclude_address and addr == exclude_address:
+                continue
+            await agent.receive_message(message)
+
+    async def _on_chain_message(self, message: SwarmMessage, to_address: Optional[str]):
+        """ChainWatcher callback: deliver a message decoded from a real block."""
+        await self.deliver_message(message, to_address=to_address,
+                                   exclude_address=message.sender)
     
     async def stop_swarm(self):
         """Stop all agents."""
         self.running = False
+        if self.chain_watcher is not None:
+            await self.chain_watcher.stop()
+            self.chain_watcher = None
+        if self.sdk is not None:
+            await self.sdk.close()
+            self.sdk = None
         for agent in self.agents:
             await agent.stop()
     
@@ -230,6 +252,8 @@ class SwarmOrchestrator:
             "completed_tasks": total_completed,
             "success_rate": success_rate,
             "mode": "mock" if self.mock_mode else "live",
+            "chain": (self.sdk.stats if self.sdk else (self.chain_watcher.stats if self.chain_watcher else None)),
+            "escrow": self.escrow.stats(),
             "transactions": list(self.transaction_history),  # Last 30 transactions
             "task_history": self.task_history[-50:],  # Last 50 tasks
             "agents": {
@@ -240,18 +264,18 @@ class SwarmOrchestrator:
     
     # Control methods
     async def pause(self):
-        """Pause swarm operations."""
+        """Pause swarm operations (agents stay alive; decision loops idle)."""
         for agent in self.agents:
-            agent.running = False
+            agent.paused = True
         print("⏸️  Swarm paused")
-    
+
     async def resume(self):
         """Resume swarm operations."""
         for agent in self.agents:
-            agent.running = True
+            agent.paused = False
         print("▶️  Swarm resumed")
     
-    async def manual_task_creation(self, target: int, reward: int, task_type_str: str = "prime_finding"):
+    async def manual_task_creation(self, target: int, reward: int, task_type_str: str = "prime_finding", prompt: str = ""):
         """Manually create a task (for testing)."""
         # Find first coordinator
         coordinator = next((a for a in self.agents if a.state.role == "coordinator"), None)
@@ -285,6 +309,11 @@ class SwarmOrchestrator:
                 query = f"item_{random.randint(0, dataset_size-1)}"
                 input_data = {"dataset": dataset, "query": query}
                 description = f"Search for '{query}' in dataset"
+            elif task_type == TaskType.AI_TASK:
+                from backend.swarm.task_types import get_ai_prompt
+                p = (prompt or "").strip() or get_ai_prompt()
+                input_data = {"prompt": p}
+                description = f"AI task: {p[:60]}{'…' if len(p) > 60 else ''}"
 
             task = Task(
                 task_id=coordinator.next_task_id,
@@ -303,7 +332,7 @@ class SwarmOrchestrator:
                 "description": task.description,
                 "reward": task.reward,
                 "coordinator": coordinator.state.agent_id,
-                "task_type": "prime_finding"
+                "task_type": task_type.value
             })
             
             await coordinator.broadcast_task(task)
@@ -315,24 +344,27 @@ class SwarmOrchestrator:
         """Dynamically add a new agent to the swarm."""
         from backend.agents.coordinator_agent import CoordinatorAgent
         from backend.agents.solver_agent import SolverAgent
-        from backend.kaspa.wallet import KaspaWallet
-        
+
         agent_id = f"{role}_{int(time.time()*1000)}"
-        wallet = KaspaWallet() # In real app, would need new keypair
-        
+
+        # Share the swarm's wallet (same mode/node) like initialize_swarm does.
         if role == "coordinator":
-            agent = CoordinatorAgent(wallet, agent_id)
+            agent = CoordinatorAgent(self.wallet, agent_id)
         else:
-            agent = SolverAgent(wallet, agent_id, skill_level)
-            
+            agent = SolverAgent(self.wallet, agent_id, skill_level)
+
+        # CRITICAL: initialize() sets up the agent's address. Without it the agent
+        # has no state.address and crashes (swallowed) the first time it tries to
+        # bid/send — leaving it idle forever, never joining a coordinator.
+        await agent.initialize()
         agent.orchestrator = self
         self.agents.append(agent)
-        
+
         if role == "coordinator":
             self.num_coordinators += 1
         else:
             self.num_solvers += 1
-            
+
         # Start agent loop
         asyncio.create_task(agent.start())
         print(f"➕ Added new agent: {agent_id} (Role: {role}, Skill: {skill_level})")
@@ -357,6 +389,36 @@ class SwarmOrchestrator:
         print(f"➖ Removed agent: {agent_id}")
         return True
     
+    def _find_agent(self, address: str):
+        for agent in self.agents:
+            if agent.state.address and agent.state.address.address == address:
+                return agent
+        return None
+
+    def get_reputation(self, address: str) -> float:
+        """Authoritative reputation for an address. Unknown/external addresses get
+        LOW trust (not the 100 baseline), so a spoofed or removed sender can't win
+        the reputation-weighted auction by being unrecognized."""
+        agent = self._find_agent(address)
+        if not agent:
+            return 1.0
+        return float(getattr(agent, "reputation", 100.0))
+
+    def adjust_reputation(self, address: str, delta: float):
+        """Adjust a solver's reputation by address (reward on success, slash on fail)."""
+        agent = self._find_agent(address)
+        if agent and hasattr(agent, "reputation"):
+            agent.reputation = max(0.0, min(200.0, agent.reputation + delta))
+            tag = "📈" if delta >= 0 else "📉"
+            print(f"{tag} Reputation of {agent.state.agent_id}: {agent.reputation:.0f} ({'+' if delta>=0 else ''}{delta})")
+
+    def credit_solution(self, address: str):
+        """Credit a solver's verified-and-paid work (stats reflect real success)."""
+        agent = self._find_agent(address)
+        if agent:
+            agent.state.completed_tasks += 1
+            agent.state.successful_bids += 1
+
     async def set_task_frequency(self, min_interval: float, max_interval: float):
         """Adjust task creation frequency."""
         for agent in self.agents:

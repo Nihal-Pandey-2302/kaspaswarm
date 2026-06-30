@@ -1,12 +1,13 @@
 """Wait for kaspad to sync, then test balance and a real transaction."""
 import asyncio, sys, os, time
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-os.environ.setdefault('COORDINATOR_ADDRESS', 'kaspatest:qqvsr50kefxsrjhz2wsurz79jsugxlh66qu6zlvcfl4szhn85fj4cdf62mylq')
-os.environ.setdefault('COORDINATOR_PRIVATE_KEY', 'dda7c644ef54fe5989dd194bed136443bb19070ae56ed93e2ec2ecb24f4bd10b')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))  # project root
 
-from kaspa.wrpc_client import KaspaRpcClient
+# Credentials come from the environment (.env), never hardcoded. See .env.example.
+from backend.kcore.wrpc_client import KaspaRpcClient
 
-ADDR = os.environ['COORDINATOR_ADDRESS']
+ADDR = os.environ.get('COORDINATOR_ADDRESS')
+if not ADDR:
+    sys.exit("COORDINATOR_ADDRESS not set — add it to your .env (see .env.example)")
 
 async def wait_for_sync():
     c = KaspaRpcClient('ws://127.0.0.1:18210')
