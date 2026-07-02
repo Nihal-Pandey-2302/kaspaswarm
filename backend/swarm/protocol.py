@@ -54,8 +54,16 @@ class SwarmOrchestrator:
         # messages decoded from real blocks.
         self.chain_watcher: Optional[ChainWatcher] = None
         self.sdk = None  # SdkTransport in live mode
-        # Escrow / stake-slash layer (in-protocol now; covenant-backed on TN12)
-        self.escrow = InProtocolEscrow()
+        # Escrow / stake-slash layer. Default = fast in-protocol bookkeeping.
+        # COVENANT_ESCROW=true routes each task's reward through a REAL per-task
+        # KIP-10 covenant on testnet-10 (settle -> solver / refund -> coordinator),
+        # at the cost of a funding + confirmation tx per task.
+        if not mock_mode and os.getenv("COVENANT_ESCROW", "false").lower() == "true":
+            from backend.kcore.covenant import CovenantEscrow
+            self.escrow = CovenantEscrow()
+            print("🛡️ Settlement backend: on-chain CovenantEscrow (per-task covenant)")
+        else:
+            self.escrow = InProtocolEscrow()
         
     def log_task_event(self, task_id: int, event: str, data: Dict):
         """Log task lifecycle events for history panel."""

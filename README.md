@@ -330,6 +330,21 @@ A 4-act proof, run against a real coordinator wallet (cap = 2 KAS). View on
 > do not use on mainnet). The cap is *per-transaction*, not a rolling budget, and the
 > AUTO branch is single-output by design, so larger balances require the co-sign branch.
 
+### Covenant-governed settlement (opt-in)
+
+The same covenant machinery also backs **on-chain task settlement**. Set
+`COVENANT_ESCROW=true` and each task's reward is locked at assignment into a
+**per-task escrow covenant** (`backend/kcore/escrow_covenant.py`) that Kaspa
+enforces: the locked reward can move **only** to the pinned solver (release/settle)
+or back to the coordinator (refund) — never elsewhere. Validated live on TN10
+(lock → settle-to-solver, lock → refund-to-coordinator). It is opt-in because
+per-task on-chain settlement adds a funding + confirmation tx per task; the default
+in-protocol escrow keeps the live swarm fast. Standalone check:
+
+```bash
+python -m backend.escrow_demo
+```
+
 ## 🔧 Technical Implementation
 
 KaspaSwarm implements a full cryptographic stack in Python to interact with the Kaspa network directly:

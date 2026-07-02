@@ -188,10 +188,13 @@ class CoordinatorAgent(BaseAgent):
             # covenant enforces this on-chain on TN12). Stake = half the bid.
             if self.orchestrator:
                 stake = max(1, task.winning_bid // 2)
-                self.orchestrator.escrow.lock(
-                    task.task_id, self.state.address.address, best_bid["agent"],
-                    task.winning_bid, stake,
-                )
+                try:
+                    await self.orchestrator.escrow.lock(
+                        task.task_id, self.state.address.address, best_bid["agent"],
+                        task.winning_bid, stake, self.state.address.private_key,
+                    )
+                except Exception as e:
+                    print(f"⚠️ escrow lock failed for task {task.task_id}: {e}")
 
             # Log assignment
             if self.orchestrator:
@@ -326,17 +329,26 @@ class CoordinatorAgent(BaseAgent):
 
         # Pay the agreed (winning) bid, not a flat reward.
         payout = task.winning_bid or task.reward
-        reward_tx = await self.wallet.send_transaction(
-            from_addr=self.state.address,
-            to_addr=message.sender,
-            amount=payout,
-        )
-        from backend.kcore.wallet import tx_failed
-        payout_ok = not tx_failed(reward_tx)
+        escrow = self.orchestrator.escrow if self.orchestrator else None
+
+        if escrow is not None and getattr(escrow, "pays_on_release", False):
+            # Covenant escrow: releasing the escrow IS the on-chain payout to the
+            # solver (settle branch). No separate reward tx.
+            payout_ok = await escrow.release(task.task_id)
+            reward_tx = "covenant-settled" if payout_ok else "covenant-release-failed"
+        else:
+            reward_tx = await self.wallet.send_transaction(
+                from_addr=self.state.address,
+                to_addr=message.sender,
+                amount=payout,
+            )
+            from backend.kcore.wallet import tx_failed
+            payout_ok = not tx_failed(reward_tx)
+            if payout_ok and self.orchestrator:
+                await self.orchestrator.escrow.release(task.task_id)
 
         if payout_ok:
-            # Only NOW is it truly settled: credit the solver, reward reputation,
-            # and release the escrow.
+            # Settled: credit the solver + reward reputation (escrow already released).
             task.completed = True
             task.solution = solution
             if self.orchestrator:
@@ -346,7 +358,6 @@ class CoordinatorAgent(BaseAgent):
                 })
                 self.orchestrator.adjust_reputation(message.sender, +5)
                 self.orchestrator.credit_solution(message.sender)
-                await self.orchestrator.escrow.release(task.task_id)
             print(f"🎉 Task {task.task_id} completed! Solution: {str(solution)[:80]} | Paid {payout} sompi to {message.sender[:20]}...")
         else:
             # Payout failed on-chain (coordinator's fault, not the solver's) ->
