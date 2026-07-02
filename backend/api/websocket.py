@@ -252,6 +252,26 @@ async def create_task(reward: int, target: int = 1000, task_type: str = "prime_f
     return result
 
 
+@app.get("/api/covenant/status")
+async def covenant_status():
+    """Agent Treasury Vault info + last on-chain proof result."""
+    try:
+        from backend.covenant_service import get_status
+        return get_status()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"configured": False, "reason": str(e)})
+
+
+@app.post("/api/covenant/run")
+async def covenant_run():
+    """Kick off the live covenant proof on testnet-10 (runs in the background)."""
+    try:
+        from backend.covenant_service import run_proof_background
+        return run_proof_background()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "error": str(e)})
+
+
 @app.post("/api/control/frequency")
 async def set_frequency(min_interval: float = 5.0, max_interval: float = 15.0):
     """Set task creation frequency."""

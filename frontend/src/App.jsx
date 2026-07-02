@@ -7,6 +7,7 @@ import WalletConnect from './components/WalletConnect';
 import { useWebSocket } from './hooks/useWebSocket';
 import StatsOverlay from './components/StatsOverlay';
 import OnChainFeed from './components/OnChainFeed';
+import CovenantPanel from './components/CovenantPanel';
 
 function App() {
   const { isConnected, swarmData } = useWebSocket();
@@ -80,6 +81,7 @@ function App() {
 
       {/* ---- RIGHT RAIL ---- on-chain activity, fills rail height */}
       <div className="ks-rail ks-rail-right ks-scroll" style={styles.rightRail}>
+        <CovenantPanel />
         <OnChainFeed transactions={swarmData?.transactions} mode={swarmData?.mode} />
       </div>
 
