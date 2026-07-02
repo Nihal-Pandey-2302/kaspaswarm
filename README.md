@@ -1,5 +1,7 @@
 # KaspaSwarm 🐝⚡
 
+**Kaspa Address:** kaspa:qqvsr50kefxsrjhz2wsurz79jsugxlh66qu6zlvcfl4szhn85fj4cv0u356wy
+
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![CI](https://github.com/Nihal-Pandey-2302/kaspaswarm/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
