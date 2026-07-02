@@ -1,0 +1,70 @@
+// rolling_vault.sil — Agent Treasury Vault v2: a ROLLING-WINDOW spend limit.
+//
+// STATUS: SilverScript source, compiler-ready. This is a STATEFUL covenant (it
+// carries and updates state across spends), which is why it is authored in
+// SilverScript and compiled with `silverc` rather than hand-built with raw
+// ScriptBuilder opcodes — state recursion (re-locking the change output to the
+// same covenant with updated state) is exactly what the compiler is for.
+//
+//   silverc backend/covenants/rolling_vault.sil \
+//     --constructor-args args.json -o rolling_vault.json
+//
+// Then drive it from Python exactly like the stateless vaults
+// (backend/kcore/treasury_vault.py): patch the state bytes, derive the P2SH
+// address, fund, and spend. PoC — testnet-10 only (Toccata / SilverScript are
+// experimental; do not use on mainnet).
+//
+// POLICY
+//   The agent may spend autonomously, but no more than `periodLimit` sompi within
+//   any rolling window of `periodLength` (in DAA score). The window resets when the
+//   elapsed time since `windowStart` exceeds `periodLength`. Every spend must:
+//     - output[0] : the payment (to any recipient, <= remaining budget)
+//     - output[1] : change, RE-LOCKED to this same vault with updated state
+//                   (new windowStart / spentInWindow) — enforced by the chain.
+//   The owner co-sign branch bypasses the limit for exceptional spends.
+
+pragma silverscript ^0.1.0;
+
+contract RollingVault(
+    pubkey agent,          // the autonomous agent
+    pubkey owner,          // human owner (co-sign escape hatch)
+    int    periodLimit,    // max sompi spendable per rolling window
+    int    periodLength    // window length, in DAA score
+) {
+    // Covenant state, carried in the script and re-committed on every auto spend.
+    state {
+        int windowStart;      // DAA score at which the current window began
+        int spentInWindow;    // sompi already spent within the current window
+    }
+
+    // AUTO: agent spends alone, within the rolling per-window budget.
+    entrypoint function spend(sig agentSig) {
+        require(checkSig(agentSig, agent));
+
+        int now = tx.locktime;                 // spend commits to a locktime (DAA)
+        int payment = tx.outputs[0].value;
+
+        // Reset the window if it has elapsed; otherwise accumulate.
+        int newWindowStart = now;
+        int newSpent = payment;
+        if (now - windowStart < periodLength) {
+            newWindowStart = windowStart;
+            newSpent = spentInWindow + payment;
+        }
+        require(newSpent <= periodLimit);
+
+        // Re-lock the change (output[1]) to this same vault with UPDATED state, so
+        // the agent cannot reset or evade the budget by redirecting change.
+        require(tx.outputs.length == 2);
+        validateOutputState(1, RollingVault.state {
+            windowStart: newWindowStart,
+            spentInWindow: newSpent
+        });
+    }
+
+    // MANUAL: agent + owner co-sign — unconstrained (exceptional spends).
+    entrypoint function manual(sig agentSig, sig ownerSig) {
+        require(checkSig(agentSig, agent));
+        require(checkSig(ownerSig, owner));
+    }
+}
