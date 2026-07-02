@@ -132,16 +132,32 @@ class CovenantEscrow(EscrowManager):
         self.network_id = network_id or os.getenv("KASPA_NETWORK_ID", "testnet-10")
         self.network_type = network_type_from_id(self.network_id)
         self._client = None
+        self._rpc_lock = None
         self._records: Dict[int, dict] = {}
         self._totals = {"locked": 0, "released": 0, "slashed": 0, "cancelled": 0,
                         "kas_locked": 0, "kas_released": 0, "kas_slashed": 0}
 
     async def _rpc(self):
-        if self._client is None:
-            from kaspa import Resolver, RpcClient
-            self._client = RpcClient(resolver=Resolver(), network_id=self.network_id)
-            await self._client.connect()
+        if self._client is not None:
+            return self._client
+        import asyncio
+        if self._rpc_lock is None:
+            self._rpc_lock = asyncio.Lock()
+        async with self._rpc_lock:
+            if self._client is None:
+                from kaspa import Resolver, RpcClient
+                client = RpcClient(resolver=Resolver(), network_id=self.network_id)
+                await client.connect()       # only publish once connected
+                self._client = client
         return self._client
+
+    async def close(self):
+        if self._client is not None:
+            try:
+                await self._client.disconnect()
+            except Exception:
+                pass
+            self._client = None
 
     async def _wait_utxo(self, address_str: str, tries: int = 40):
         client = await self._rpc()
@@ -160,7 +176,7 @@ class CovenantEscrow(EscrowManager):
         if not coordinator_priv:
             raise RuntimeError("CovenantEscrow.lock requires the coordinator private key")
         kp = Keypair.from_private_key(PrivateKey(coordinator_priv))
-        vault = derive_escrow(kp.xonly_public_key, solver, coordinator, self.network_type)
+        vault = derive_escrow(kp.xonly_public_key, solver, coordinator, self.network_type, task_id)
         txid = await get_transport().send(coordinator_priv, coordinator, vault.address_str(), int(reward), b"")
         if isinstance(txid, str) and txid.startswith("failed"):
             raise RuntimeError(f"escrow lock funding failed: {txid}")
@@ -177,16 +193,24 @@ class CovenantEscrow(EscrowManager):
         info = self._records.get(task_id)
         if not info or info["rec"].state != "locked":
             return None
-        client = await self._rpc()
-        vault = info["vault"]
-        coord_key = PrivateKey(info["coord_priv"])
-        utxo = await self._wait_utxo(vault.address_str())
+        # Claim the record SYNCHRONOUSLY (before any await) so a racing settle vs.
+        # refund (timeout-slash interleaving a late release across _wait_utxo's long
+        # await) can never both spend the same covenant UTXO. Restore on failure.
+        info["rec"].state = "settling"
+        try:
+            client = await self._rpc()
+            vault = info["vault"]
+            coord_key = PrivateKey(info["coord_priv"])
+            utxo = await self._wait_utxo(vault.address_str())
 
-        def sign_fn(tx):
-            return unlock_builder(vault, create_input_signature(tx, 0, coord_key))
+            def sign_fn(tx):
+                return unlock_builder(vault, create_input_signature(tx, 0, coord_key))
 
-        txid, _pay = await spend_vault(client, self.network_id, vault, utxo, to_spk, sign_fn, 1)
-        return txid
+            txid, _pay = await spend_vault(client, self.network_id, vault, utxo, to_spk, sign_fn, 1)
+            return txid
+        except Exception:
+            info["rec"].state = "locked"   # release the claim so a legit retry can happen
+            raise
 
     async def release(self, task_id):
         from backend.kcore.escrow_covenant import settle_unlock_script

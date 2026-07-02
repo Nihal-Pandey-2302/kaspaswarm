@@ -55,12 +55,19 @@ class EscrowVault:
         return self.address.to_string()
 
 
-def build_escrow_redeem_script(coordinator_xonly_hex: str, solver_spk, coordinator_spk) -> ScriptBuilder:
+def build_escrow_redeem_script(coordinator_xonly_hex: str, solver_spk, coordinator_spk,
+                               task_id: int = 0) -> ScriptBuilder:
     coord_pk = bytes.fromhex(coordinator_xonly_hex)
     solver_b = _spk_bytes(solver_spk)
     coord_b = _spk_bytes(coordinator_spk)
     return (
         ScriptBuilder(covenants_enabled=True)
+        # Bind task_id into the script (pushed then dropped — a no-op at runtime)
+        # so each task derives a UNIQUE P2SH address. Without this, two tasks for
+        # the same (coordinator, solver) pair would share one covenant UTXO and
+        # settle/refund could grab the wrong task's funds.
+        .add_i64(int(task_id))
+        .add_op(Opcodes.OpDrop)
         .add_op(Opcodes.OpIf)
         # SETTLE -> pay the pinned solver
         .add_op(Opcodes.OpTxOutputCount)
@@ -88,10 +95,10 @@ def build_escrow_redeem_script(coordinator_xonly_hex: str, solver_spk, coordinat
 
 
 def derive_escrow(coordinator_xonly_hex: str, solver_addr: str, coordinator_addr: str,
-                  network_type: str = "testnet") -> EscrowVault:
+                  network_type: str = "testnet", task_id: int = 0) -> EscrowVault:
     solver_spk = pay_to_address_script(Address(solver_addr))
     coordinator_spk = pay_to_address_script(Address(coordinator_addr))
-    redeem = build_escrow_redeem_script(coordinator_xonly_hex, solver_spk, coordinator_spk)
+    redeem = build_escrow_redeem_script(coordinator_xonly_hex, solver_spk, coordinator_spk, task_id)
     covenant_spk = redeem.create_pay_to_script_hash_script()
     address = address_from_script_public_key(covenant_spk, network_type)
     return EscrowVault(redeem, covenant_spk, address, solver_spk, coordinator_spk)

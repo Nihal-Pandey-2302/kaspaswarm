@@ -179,13 +179,11 @@ class CoordinatorAgent(BaseAgent):
             task.assigned_to = best_bid["agent"]
             task.winning_bid = best_bid["amount"]  # pay the agreed bid, not a flat reward
 
-            # Give the solver a FRESH solve window from assignment time. The
-            # original deadline is wall-clock from task creation, so a pause (or a
-            # slow bidding phase) could otherwise leave ~no time and unfairly slash.
-            task.deadline = time.time() + 30
-
-            # Lock reward + solver stake in escrow (in-protocol now; the SilverScript
-            # covenant enforces this on-chain on TN12). Stake = half the bid.
+            # Lock the reward in escrow BEFORE assigning. In covenant mode this
+            # funds a real per-task on-chain covenant; if it fails, abort the task
+            # rather than sending a solver after a reward that was never escrowed
+            # (which would otherwise leave release/cancel polling for a UTXO that
+            # never appears).
             if self.orchestrator:
                 stake = max(1, task.winning_bid // 2)
                 try:
@@ -194,7 +192,16 @@ class CoordinatorAgent(BaseAgent):
                         task.winning_bid, stake, self.state.address.private_key,
                     )
                 except Exception as e:
-                    print(f"⚠️ escrow lock failed for task {task.task_id}: {e}")
+                    print(f"⚠️ escrow lock failed for task {task.task_id}: {e} — aborting assignment")
+                    self.active_tasks.pop(task.task_id, None)
+                    self.orchestrator.log_task_event(task.task_id, "failed", {})
+                    return
+
+            # Give the solver a FRESH solve window from assignment time — set AFTER
+            # the lock so on-chain funding latency doesn't eat into the window. The
+            # original deadline is wall-clock from task creation, so a pause (or a
+            # slow bidding phase) could otherwise leave ~no time and unfairly slash.
+            task.deadline = time.time() + 30
 
             # Log assignment
             if self.orchestrator:

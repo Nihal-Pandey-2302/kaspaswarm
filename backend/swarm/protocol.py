@@ -250,6 +250,13 @@ class SwarmOrchestrator:
         if self.sdk is not None:
             await self.sdk.close()
             self.sdk = None
+        # Close the covenant-escrow RPC client if that backend is active.
+        _esc_close = getattr(self.escrow, "close", None)
+        if _esc_close is not None:
+            try:
+                await _esc_close()
+            except Exception:
+                pass
         for agent in self.agents:
             await agent.stop()
     
