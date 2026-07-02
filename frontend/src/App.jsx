@@ -8,11 +8,15 @@ import { useWebSocket } from './hooks/useWebSocket';
 import StatsOverlay from './components/StatsOverlay';
 import OnChainFeed from './components/OnChainFeed';
 import CovenantPanel from './components/CovenantPanel';
+import GuidedTour, { shouldAutoOpenTour } from './components/GuidedTour';
 
 function App() {
   const { isConnected, swarmData } = useWebSocket();
   const [showHistory, setShowHistory] = useState(false);
   const [showCharts, setShowCharts] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+
+  useEffect(() => { if (shouldAutoOpenTour()) setShowTour(true); }, []);
 
   const isLive = swarmData?.mode === 'live';
   const chainConnected = swarmData?.chain?.connected;
@@ -69,6 +73,14 @@ function App() {
             >
               📊 Performance
             </button>
+            <button
+              onClick={() => setShowTour(true)}
+              className="ks-pill-btn"
+              style={styles.railButton}
+              title="How this demo works"
+            >
+              ❓ Tour
+            </button>
           </div>
         </div>
 
@@ -84,6 +96,9 @@ function App() {
         <CovenantPanel />
         <OnChainFeed transactions={swarmData?.transactions} mode={swarmData?.mode} />
       </div>
+
+      {/* First-visit guided tour (re-openable via ❓ Tour) */}
+      <GuidedTour open={showTour} onClose={() => setShowTour(false)} />
 
       {/* Task History modal */}
       {showHistory && (
