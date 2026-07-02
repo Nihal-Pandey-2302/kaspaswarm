@@ -120,7 +120,7 @@ async def main():
     pending.sign([pk])
     txid = await pending.submit(rpc)
     print(f"   ✅ submitted txid={txid}")
-    print(f"   🔗 https://explorer-tn10.kaspa.org/txs/{txid}")
+    print(f"   🔗 https://tn10.kaspa.stream/transactions/{txid}")
 
     deadline = time.time() + TIMEOUT_S
     while time.time() < deadline:

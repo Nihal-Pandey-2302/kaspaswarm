@@ -1,7 +1,8 @@
 import React from 'react';
 
-// Testnet (TN10) explorer base. Change here to point at a different network.
-const EXPLORER_BASE = 'https://explorer-tn10.kaspa.org/txs';
+// Testnet (TN10) explorer base. kaspa.stream is the explorer recommended by Kaspa
+// core (IzioDev) for TN10 — explorer-tn10.kaspa.org has been unreliable.
+const EXPLORER_BASE = 'https://tn10.kaspa.stream/transactions';
 
 const MSG_TYPES = {
   1: { label: 'Task', color: '#ffaa00' },
