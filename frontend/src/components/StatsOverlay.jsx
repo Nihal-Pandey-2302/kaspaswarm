@@ -1,6 +1,17 @@
+import { useState, useEffect } from 'react';
+
 const kas = (sompi) => `${(Number(sompi || 0) / 1e8).toFixed(2)} KAS`;
 
 export default function StatsOverlay({ swarmData, isConnected }) {
+  // After a few seconds without data, explain the free-tier cold start so a judge
+  // waits instead of assuming it's broken (the WS auto-reconnects — no refresh needed).
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (swarmData) { setSlow(false); return; }
+    const t = setTimeout(() => setSlow(true), 6000);
+    return () => clearTimeout(t);
+  }, [swarmData]);
+
   if (!swarmData) {
     return (
       <div style={styles.stack}>
@@ -18,6 +29,12 @@ export default function StatsOverlay({ swarmData, isConnected }) {
               {isConnected ? 'Initializing swarm…' : 'Connecting…'}
             </span>
           </div>
+          {slow && !isConnected && (
+            <div style={styles.coldHint}>
+              ⏳ Waking the free-tier backend — first load can take ~30–60s.
+              It connects automatically; no need to refresh.
+            </div>
+          )}
         </div>
       </div>
     );
@@ -214,6 +231,16 @@ const styles = {
     fontSize: '13px',
     color: '#ffaa00',
     fontWeight: 600,
+  },
+  coldHint: {
+    marginTop: '12px',
+    fontSize: '11px',
+    lineHeight: 1.5,
+    color: '#9aa4b2',
+    background: 'rgba(255,170,0,0.08)',
+    border: '1px solid rgba(255,170,0,0.25)',
+    borderRadius: '8px',
+    padding: '8px 10px',
   },
   legend: {
     fontSize: '13px',

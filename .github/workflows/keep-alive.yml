@@ -1,0 +1,30 @@
+name: keep-alive
+
+# Keeps the Render free-tier backend warm so judges never hit a ~30-60s cold start.
+# It only sends an HTTP GET to /health — it does NOT open a dashboard WebSocket, so
+# the swarm's idle fund-guard still applies and NO testnet funds are spent by pinging.
+#
+# Setup: add a repo *variable* (Settings > Secrets and variables > Actions > Variables)
+#   RENDER_HEALTH_URL = https://<your-backend>.onrender.com/health
+# If unset, the job no-ops. (Note: GitHub disables scheduled workflows after ~60 days
+# of repo inactivity — fine for a hackathon; UptimeRobot/cron-job.org is a more robust
+# always-on alternative.)
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every ~10 min (under Render's ~15 min sleep window)
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend /health
+        run: |
+          URL="${{ vars.RENDER_HEALTH_URL }}"
+          if [ -z "$URL" ]; then
+            echo "RENDER_HEALTH_URL not set — skipping. Add it as a repo Actions variable."
+            exit 0
+          fi
+          echo "Pinging $URL"
+          curl -fsS --max-time 90 "$URL" && echo "  ✓ backend awake"
