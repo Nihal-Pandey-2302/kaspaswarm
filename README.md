@@ -34,9 +34,10 @@ KaspaSwarm originated at **Kaspathon 2026** (4th place, Main Track · winner, Re
 - **Real LLM-powered agents** — solvers complete actual AI tasks via any OpenAI-compatible endpoint (Groq, OpenAI, local Ollama), and a separate LLM **verifier-agent** grades the answer before payment. Falls back to deterministic compute tasks when no LLM is configured.
 - **A real agent economy** — reputation-weighted reverse auction (`√reputation / bid`) for assignment, plus in-protocol **escrow** (lock → release / slash / cancel) so honest work is paid and failed work is penalised.
 - **MCP server** (`backend/mcp_server.py`) — any external AI agent (Claude Desktop, Cursor, Claude Code) can **hire the swarm** as a tool: post an AI task, the swarm bids/solves/verifies and settles on Kaspa, and the caller retrieves the result. *An agent hiring agents, settled on a fast L1.*
+- **🛡️ On-chain covenant governance (real, KIP-10, testnet-10)** — an **Agent Treasury Vault** whose spending policy is enforced by Kaspa consensus itself: the agent can auto-pay a pinned beneficiary up to a per-transaction cap, but an over-cap or off-policy spend is **rejected by the network**, and large/unusual spends require a human co-signer. Built with `ScriptBuilder(covenants_enabled=True)` + KIP-10 introspection opcodes (`backend/kcore/treasury_vault.py`), demoable from the dashboard. See [On-chain covenant governance](#-on-chain-covenant-governance-agent-treasury-vault) below.
 - **Deterministic, fundable agent wallets** + tooling (`fund_agents.py`).
 
-> **A note on covenants:** trustless on-chain escrow via KIP-10 introspection (SilverScript) is the natural settlement primitive here, and a covenant draft is included (`backend/covenants/agent_escrow.sil`). The shipping Kaspa Python SDK (1.0.0) does not yet expose the introspection opcodes, so settlement currently runs through the in-protocol escrow described above; the abstraction (`backend/kcore/covenant.py`) is ready to swap in once the opcodes ship.
+> **Honest scope on covenants:** the treasury-vault covenant is a **testnet-10 proof of concept** (Toccata / SilverScript are experimental). It enforces a *per-transaction* cap (not a rolling budget) and the auto branch is single-output, so large balances intentionally require the human co-sign branch. The in-protocol escrow above still handles task settlement; `backend/kcore/covenant.py` is the seam to route escrow through a covenant next.
 
 Prior-project code is disclosed as such; the items above are new work for this event.
 
@@ -96,6 +97,7 @@ graph TD
         Coord["Coordinator Agents<br/>auction + escrow + verify"]
         Solver["Solver Agents<br/>bid + execute"]
         Econ["Economy<br/>reputation auction · escrow<br/>(lock/release/slash/cancel)"]
+        Vault["🛡️ Treasury Vault<br/>KIP-10 covenant<br/>(cap + co-sign)"]
         LLM["LLM client<br/>(Groq / OpenAI / Ollama)"]
         TX["SDK Transport<br/>(payload codec · adaptive fee)"]
 
@@ -107,6 +109,7 @@ graph TD
         Solver --"solve AI task"--> LLM
         Coord --"broadcast tx"--> TX
         Solver --"broadcast tx"--> TX
+        Vault --"policy-governed payout"--> TX
     end
 
     subgraph KAS["Kaspa Network (Testnet-10)"]
@@ -286,6 +289,47 @@ Add to your MCP client config (with the backend running on `:8000`):
 }
 ```
 
+## 🛡️ On-chain covenant governance (Agent Treasury Vault)
+
+Beyond coordination, KaspaSwarm puts an agent's **treasury under on-chain policy**.
+The agent's payout wallet is a P2SH UTXO whose redeem script is a **KIP-10 covenant**
+that Kaspa consensus enforces — not our backend:
+
+- **AUTO branch** — the agent signs alone, but the payment must be a **single output**,
+  to a **pinned beneficiary**, whose value is **≤ a per-transaction cap**.
+- **MANUAL branch** — the agent **and** a human owner co-sign → any amount / recipient
+  (the "high-risk / unusual spend needs human approval" escape hatch).
+
+An agent that only holds the agent key therefore **cannot exceed the cap or redirect
+funds** on its own — the chain rejects the transaction.
+
+Built with the covenant-enabled SDK (`kaspa==2.0.1`): `ScriptBuilder(covenants_enabled=True)`
++ introspection opcodes (`OpTxOutputCount`, `OpTxOutputAmount`, `OpLessThanOrEqual`,
+`OpTxOutputSpk`, `OpCheckSig`/`OpCheckSigVerify`) →
+`create_pay_to_script_hash_script()` → P2SH vault address
+(`backend/kcore/treasury_vault.py`). Run it from the dashboard (**🛡️ Agent Treasury
+Vault → Run on-chain proof**) or the CLI:
+
+```bash
+python -m backend.covenant_demo
+```
+
+### Validated live on testnet-10
+
+A 4-act proof, run against a real coordinator wallet (cap = 2 KAS). View on
+[tn10.kaspa.stream](https://tn10.kaspa.stream):
+
+| Act | Policy check | Result |
+| --- | --- | --- |
+| AUTO pay beneficiary **1 KAS** (≤ cap) | within cap, correct payee | ✅ **ACCEPTED** — [tx](https://tn10.kaspa.stream/transactions/76dd4b96c0f8f71d243e3cbdb5393c12ed72b0af92cef8efdf1b4b7975337c9f) |
+| AUTO pay beneficiary **3 KAS** (> cap) | over the on-chain cap | ⛔ **BLOCKED** by consensus |
+| AUTO pay **wrong address** (≤ cap) | recipient ≠ pinned payee | ⛔ **BLOCKED** by consensus |
+| MANUAL co-sign **3 KAS** (agent + owner) | human approves | ✅ **ACCEPTED** — [tx](https://tn10.kaspa.stream/transactions/2697d12230555eb67ce472e3f4ceb3cb9c46e9098b9a827d3fa352f0d63b72e7) |
+
+> **Honest scope:** this is a testnet-10 PoC (Toccata / SilverScript are experimental —
+> do not use on mainnet). The cap is *per-transaction*, not a rolling budget, and the
+> AUTO branch is single-output by design, so larger balances require the co-sign branch.
+
 ## 🔧 Technical Implementation
 
 KaspaSwarm implements a full cryptographic stack in Python to interact with the Kaspa network directly:
@@ -319,6 +363,10 @@ KaspaSwarm implements a full cryptographic stack in Python to interact with the 
 - **Agent economy** (`backend/swarm/protocol.py`, `backend/kcore/covenant.py`):
   reputation-weighted reverse auction for assignment and in-protocol escrow that
   locks a stake on assignment and releases, slashes, or cancels it at settlement.
+- **On-chain covenant governance** (`backend/kcore/treasury_vault.py`,
+  `backend/covenant_service.py`): a KIP-10 P2SH covenant that caps and pins an
+  agent's autonomous payouts, with a human co-sign branch — enforced by consensus.
+  See [On-chain covenant governance](#-on-chain-covenant-governance-agent-treasury-vault).
 - **Deterministic agent wallets**: each agent derives a stable address from a master
   seed (`AGENT_MASTER_SEED`), so addresses persist across restarts and can be funded
   once (see `backend/fund_agents.py`).
@@ -361,6 +409,7 @@ Switching back to live mode requires only active node connectivity — no code c
 ✅ **Real on-chain coordination** on testnet-10 via the Kaspa SDK + Resolver  
 ✅ **LLM-powered agents** — solvers do real AI work; a verifier-agent grades it before payment  
 ✅ **Agent economy** — reputation-weighted reverse auction + in-protocol escrow (lock/release/slash/cancel)  
+✅ **On-chain covenant governance** — KIP-10 Agent Treasury Vault: consensus-enforced spend cap + human co-sign (testnet-10 PoC)  
 ✅ **MCP server** — external AI agents can hire the swarm and settle on Kaspa  
 ✅ **2 Coordinator + 8 Solver Agents** with skill-based bidding  
 ✅ **Real-time 3D Visualization** (Three.js) + statistics & on-chain activity dashboard  

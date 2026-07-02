@@ -94,6 +94,11 @@ export default function StatsOverlay({ swarmData, isConnected }) {
           <span style={styles.label}>Integrations:</span>
           <span style={{ ...styles.value, fontSize: '11px', color: '#4f9eff' }}>🔌 MCP-hireable</span>
         </div>
+
+        <div style={styles.stat}>
+          <span style={styles.label}>Treasury:</span>
+          <span style={{ ...styles.value, fontSize: '11px', color: '#00ff88' }}>🛡️ Covenant-governed</span>
+        </div>
       </div>
 
       {/* Legend */}
