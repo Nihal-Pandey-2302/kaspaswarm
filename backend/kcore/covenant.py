@@ -8,11 +8,15 @@ Two interchangeable backends behind one interface:
   guarantees are enforced by the coordinator (the current trust model).
 
 - CovenantEscrow    — the on-chain version. Locks the reward + the solver's stake
-  in the SilverScript `AgentEscrow` covenant (see backend/covenants/agent_escrow.sil)
-  so settlement is enforced by Kaspa itself, not by trusting the coordinator.
-  Requires Testnet-12 (covenants/KIP-10) + the silverscript compiler, so it is a
-  stub with the integration points marked. Swapping it in requires NO change to
-  the coordinator — both backends share the same interface.
+  in a SilverScript-style escrow covenant so settlement is enforced by Kaspa
+  itself, not by trusting the coordinator. Still a stub with the integration
+  points marked; swapping it in requires NO change to the coordinator.
+
+NOTE: the on-chain covenant building blocks this stub needs are now REAL and
+validated — see backend/kcore/treasury_vault.py (KIP-10 redeem script +
+P2SH derivation + spend_vault) and backend/covenant_demo.py (a working
+governance covenant on testnet-10). CovenantEscrow can be implemented by reusing
+treasury_vault.spend_vault with an escrow (settle/timeout/cancel) redeem script.
 
 This is the seam that turns the in-protocol economic model (bidding, reputation,
 soft-slash) into trustless, chain-enforced settlement.
