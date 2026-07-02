@@ -88,6 +88,24 @@ def test_escrow_address_unique_per_task():
     assert v1.address_str() == same.address_str() # but stable for the same task
 
 
+def test_rolling_vault_artifact_derives_address():
+    """The stateful rolling-allowance covenant (compiled by silverc) is a real
+    Kaspa script that derives a fundable P2SH address — validated from the committed
+    artifact so CI doesn't need the Rust compiler installed."""
+    import json
+    import os
+    from kaspa import ScriptBuilder, address_from_script_public_key
+
+    artifact = os.path.join(os.path.dirname(__file__), "..", "covenants", "rolling_vault.json")
+    d = json.load(open(artifact))
+    assert d["contract_name"] == "AgentAllowance"
+    assert len(d["script"]) > 0
+    assert {f["name"] for f in d["abi"]} == {"draw", "reclaim"}
+    spk = ScriptBuilder.from_script(bytes(d["script"]), covenants_enabled=True).create_pay_to_script_hash_script()
+    addr = address_from_script_public_key(spk, "testnet")
+    assert addr.to_string().startswith("kaspatest:p")
+
+
 def test_escrow_pins_solver_and_coordinator():
     coord_kp = _kp()
     coord_addr = coord_kp.to_address("testnet").to_string()

@@ -357,6 +357,27 @@ A 4-act proof, run against a real coordinator wallet (cap = 2 KAS). View on
 > do not use on mainnet). The cap is *per-transaction*, not a rolling budget, and the
 > AUTO branch is single-output by design, so larger balances require the co-sign branch.
 
+### Rolling-allowance covenant v2 (stateful, SilverScript)
+
+Beyond the per-tx cap, KaspaSwarm includes a **stateful** treasury covenant that
+enforces a *rolling* spend allowance: the agent may draw at most
+`allowancePerBlock × blocks elapsed`, and each draw **re-locks the change to the
+same covenant with an advanced window** (the state recursion). It's authored in
+**SilverScript** (`backend/covenants/rolling_vault.sil`) because state recursion
+is the compiler's job, and compiled with the real `silverc` toolchain to genuine
+Kaspa script:
+
+```bash
+cargo install --git https://github.com/kaspanet/silverscript.git silverscript-lang
+python -m backend.compile_covenant     # compiles + derives the P2SH vault address
+```
+
+This is validated end-to-end through compilation: the `.sil` compiles to a real
+222-byte Kaspa script (ABI: `draw` / `reclaim`) that derives a fundable testnet-10
+P2SH address (committed artifact: `backend/covenants/rolling_vault.json`). The live
+streaming-spend flow (window/locktime accrual + change re-lock) is the natural next
+step on top of this compiled covenant.
+
 ### Covenant-governed settlement (opt-in)
 
 The same covenant machinery also backs **on-chain task settlement**. Set

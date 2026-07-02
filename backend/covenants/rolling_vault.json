@@ -1,0 +1,1010 @@
+{
+  "contract_name": "AgentAllowance",
+  "compiler_version": "0.1.0",
+  "script": [
+    107,
+    108,
+    118,
+    0,
+    156,
+    99,
+    117,
+    0,
+    195,
+    32,
+    105,
+    0,
+    60,
+    237,
+    248,
+    194,
+    115,
+    137,
+    27,
+    132,
+    138,
+    2,
+    117,
+    83,
+    92,
+    254,
+    132,
+    192,
+    70,
+    16,
+    39,
+    234,
+    62,
+    64,
+    10,
+    26,
+    180,
+    237,
+    66,
+    20,
+    197,
+    196,
+    3,
+    0,
+    0,
+    32,
+    124,
+    126,
+    1,
+    172,
+    126,
+    135,
+    105,
+    8,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    118,
+    176,
+    181,
+    120,
+    148,
+    3,
+    160,
+    134,
+    1,
+    149,
+    2,
+    232,
+    3,
+    185,
+    190,
+    118,
+    83,
+    121,
+    148,
+    82,
+    121,
+    148,
+    118,
+    3,
+    160,
+    134,
+    1,
+    84,
+    121,
+    147,
+    161,
+    99,
+    0,
+    194,
+    82,
+    121,
+    84,
+    121,
+    148,
+    156,
+    105,
+    103,
+    0,
+    194,
+    84,
+    121,
+    156,
+    105,
+    81,
+    194,
+    120,
+    156,
+    105,
+    81,
+    195,
+    88,
+    81,
+    205,
+    181,
+    88,
+    205,
+    126,
+    185,
+    191,
+    130,
+    89,
+    124,
+    127,
+    126,
+    170,
+    2,
+    0,
+    0,
+    1,
+    170,
+    126,
+    1,
+    32,
+    126,
+    124,
+    126,
+    1,
+    135,
+    126,
+    135,
+    105,
+    104,
+    0,
+    122,
+    117,
+    0,
+    122,
+    117,
+    0,
+    122,
+    117,
+    0,
+    122,
+    117,
+    0,
+    122,
+    117,
+    81,
+    103,
+    118,
+    81,
+    156,
+    99,
+    117,
+    120,
+    170,
+    32,
+    143,
+    222,
+    38,
+    70,
+    63,
+    193,
+    48,
+    55,
+    108,
+    19,
+    97,
+    24,
+    140,
+    53,
+    127,
+    124,
+    250,
+    24,
+    174,
+    185,
+    148,
+    143,
+    167,
+    67,
+    12,
+    164,
+    16,
+    210,
+    134,
+    27,
+    184,
+    173,
+    135,
+    105,
+    118,
+    82,
+    121,
+    172,
+    105,
+    117,
+    117,
+    81,
+    103,
+    117,
+    0,
+    105,
+    104,
+    104
+  ],
+  "ast": {
+    "pragma": {
+      "name": "silverscript",
+      "value": "^0.1.0",
+      "span": "pragma silverscript ^0.1.0;",
+      "name_span": "silverscript",
+      "value_span": "^0.1.0"
+    },
+    "name": "AgentAllowance",
+    "params": [
+      {
+        "type_ref": {
+          "base": "pubkey"
+        },
+        "name": "agent",
+        "span": "pubkey agent",
+        "type_span": "pubkey ",
+        "name_span": "agent"
+      },
+      {
+        "type_ref": {
+          "base": "byte",
+          "array_dims": [
+            {
+              "kind": "fixed",
+              "value": 32
+            }
+          ]
+        },
+        "name": "owner",
+        "span": "byte[32] owner",
+        "type_span": "byte[32]",
+        "name_span": "owner"
+      },
+      {
+        "type_ref": {
+          "base": "int"
+        },
+        "name": "allowancePerBlock",
+        "span": "int allowancePerBlock",
+        "type_span": "int ",
+        "name_span": "allowancePerBlock"
+      },
+      {
+        "type_ref": {
+          "base": "byte",
+          "array_dims": [
+            {
+              "kind": "fixed",
+              "value": 8
+            }
+          ]
+        },
+        "name": "windowStart",
+        "span": "byte[8] windowStart",
+        "type_span": "byte[8]",
+        "name_span": "windowStart"
+      }
+    ],
+    "constants": [],
+    "functions": [
+      {
+        "name": "draw",
+        "params": [],
+        "entrypoint": true,
+        "return_types": [],
+        "returns_tuple": false,
+        "body": [
+          {
+            "kind": "variable_definition",
+            "data": {
+              "type_ref": {
+                "base": "byte",
+                "array_dims": [
+                  {
+                    "kind": "fixed",
+                    "value": 34
+                  }
+                ]
+              },
+              "modifiers": [],
+              "name": "agentScriptPubKey",
+              "expr": {
+                "kind": "new",
+                "data": {
+                  "name": "ScriptPubKeyP2PK",
+                  "args": [
+                    {
+                      "kind": "identifier",
+                      "data": "agent",
+                      "span": "agent"
+                    }
+                  ],
+                  "name_span": "ScriptPubKeyP2PK"
+                },
+                "span": "new ScriptPubKeyP2PK(agent)"
+              },
+              "span": "byte[34] agentScriptPubKey = new ScriptPubKeyP2PK(agent);",
+              "type_span": "byte[34]",
+              "modifier_spans": [],
+              "name_span": "agentScriptPubKey"
+            }
+          },
+          {
+            "kind": "require",
+            "data": {
+              "expr": {
+                "kind": "binary",
+                "data": {
+                  "op": "eq",
+                  "left": {
+                    "kind": "introspection",
+                    "data": {
+                      "kind": "output_script_pub_key",
+                      "index": {
+                        "kind": "int",
+                        "data": 0,
+                        "span": "0"
+                      },
+                      "field_span": ".scriptPubKey"
+                    },
+                    "span": "tx.outputs[0].scriptPubKey"
+                  },
+                  "right": {
+                    "kind": "call",
+                    "data": {
+                      "name": "byte[]",
+                      "args": [
+                        {
+                          "kind": "identifier",
+                          "data": "agentScriptPubKey",
+                          "span": "agentScriptPubKey"
+                        }
+                      ],
+                      "name_span": "byte[]"
+                    },
+                    "span": "byte[](agentScriptPubKey)"
+                  }
+                },
+                "span": "tx.outputs[0].scriptPubKey == byte[](agentScriptPubKey)"
+              },
+              "message": null,
+              "span": "require(tx.outputs[0].scriptPubKey == byte[](agentScriptPubKey));",
+              "message_span": null
+            }
+          },
+          {
+            "kind": "variable_definition",
+            "data": {
+              "type_ref": {
+                "base": "int"
+              },
+              "modifiers": [],
+              "name": "start",
+              "expr": {
+                "kind": "call",
+                "data": {
+                  "name": "int",
+                  "args": [
+                    {
+                      "kind": "identifier",
+                      "data": "windowStart",
+                      "span": "windowStart"
+                    }
+                  ],
+                  "name_span": "int"
+                },
+                "span": "int(windowStart)"
+              },
+              "span": "int start = int(windowStart);",
+              "type_span": "int ",
+              "modifier_spans": [],
+              "name_span": "start"
+            }
+          },
+          {
+            "kind": "time_op",
+            "data": {
+              "tx_var": "tx_time",
+              "expr": {
+                "kind": "identifier",
+                "data": "start",
+                "span": "start"
+              },
+              "message": null,
+              "span": "require(tx.time >= start);",
+              "tx_var_span": "tx.time",
+              "message_span": null
+            }
+          },
+          {
+            "kind": "variable_definition",
+            "data": {
+              "type_ref": {
+                "base": "int"
+              },
+              "modifiers": [],
+              "name": "elapsed",
+              "expr": {
+                "kind": "binary",
+                "data": {
+                  "op": "sub",
+                  "left": {
+                    "kind": "nullary",
+                    "data": "tx_lock_time",
+                    "span": "tx.locktime"
+                  },
+                  "right": {
+                    "kind": "identifier",
+                    "data": "start",
+                    "span": "start"
+                  }
+                },
+                "span": "tx.locktime - start"
+              },
+              "span": "int elapsed = tx.locktime - start;",
+              "type_span": "int ",
+              "modifier_spans": [],
+              "name_span": "elapsed"
+            }
+          },
+          {
+            "kind": "variable_definition",
+            "data": {
+              "type_ref": {
+                "base": "int"
+              },
+              "modifiers": [],
+              "name": "allowance",
+              "expr": {
+                "kind": "binary",
+                "data": {
+                  "op": "mul",
+                  "left": {
+                    "kind": "identifier",
+                    "data": "elapsed",
+                    "span": "elapsed"
+                  },
+                  "right": {
+                    "kind": "identifier",
+                    "data": "allowancePerBlock",
+                    "span": "allowancePerBlock"
+                  }
+                },
+                "span": "elapsed * allowancePerBlock"
+              },
+              "span": "int allowance = elapsed * allowancePerBlock;",
+              "type_span": "int ",
+              "modifier_spans": [],
+              "name_span": "allowance"
+            }
+          },
+          {
+            "kind": "variable_definition",
+            "data": {
+              "type_ref": {
+                "base": "int"
+              },
+              "modifiers": [],
+              "name": "minerFee",
+              "expr": {
+                "kind": "int",
+                "data": 1000,
+                "span": "1000"
+              },
+              "span": "int minerFee = 1000;",
+              "type_span": "int ",
+              "modifier_spans": [],
+              "name_span": "minerFee"
+            }
+          },
+          {
+            "kind": "variable_definition",
+            "data": {
+              "type_ref": {
+                "base": "int"
+              },
+              "modifiers": [],
+              "name": "currentValue",
+              "expr": {
+                "kind": "introspection",
+                "data": {
+                  "kind": "input_value",
+                  "index": {
+                    "kind": "nullary",
+                    "data": "active_input_index",
+                    "span": "this.activeInputIndex"
+                  },
+                  "field_span": ".value"
+                },
+                "span": "tx.inputs[this.activeInputIndex].value"
+              },
+              "span": "int currentValue = tx.inputs[this.activeInputIndex].value;",
+              "type_span": "int ",
+              "modifier_spans": [],
+              "name_span": "currentValue"
+            }
+          },
+          {
+            "kind": "variable_definition",
+            "data": {
+              "type_ref": {
+                "base": "int"
+              },
+              "modifiers": [],
+              "name": "changeValue",
+              "expr": {
+                "kind": "binary",
+                "data": {
+                  "op": "sub",
+                  "left": {
+                    "kind": "binary",
+                    "data": {
+                      "op": "sub",
+                      "left": {
+                        "kind": "identifier",
+                        "data": "currentValue",
+                        "span": "currentValue"
+                      },
+                      "right": {
+                        "kind": "identifier",
+                        "data": "allowance",
+                        "span": "allowance"
+                      }
+                    },
+                    "span": "currentValue - allowance"
+                  },
+                  "right": {
+                    "kind": "identifier",
+                    "data": "minerFee",
+                    "span": "minerFee"
+                  }
+                },
+                "span": "currentValue - allowance - minerFee"
+              },
+              "span": "int changeValue = currentValue - allowance - minerFee;",
+              "type_span": "int ",
+              "modifier_spans": [],
+              "name_span": "changeValue"
+            }
+          },
+          {
+            "kind": "if",
+            "data": {
+              "condition": {
+                "kind": "binary",
+                "data": {
+                  "op": "le",
+                  "left": {
+                    "kind": "identifier",
+                    "data": "changeValue",
+                    "span": "changeValue"
+                  },
+                  "right": {
+                    "kind": "binary",
+                    "data": {
+                      "op": "add",
+                      "left": {
+                        "kind": "identifier",
+                        "data": "allowancePerBlock",
+                        "span": "allowancePerBlock"
+                      },
+                      "right": {
+                        "kind": "identifier",
+                        "data": "minerFee",
+                        "span": "minerFee"
+                      }
+                    },
+                    "span": "allowancePerBlock + minerFee"
+                  }
+                },
+                "span": "changeValue <= allowancePerBlock + minerFee"
+              },
+              "then_branch": [
+                {
+                  "kind": "require",
+                  "data": {
+                    "expr": {
+                      "kind": "binary",
+                      "data": {
+                        "op": "eq",
+                        "left": {
+                          "kind": "introspection",
+                          "data": {
+                            "kind": "output_value",
+                            "index": {
+                              "kind": "int",
+                              "data": 0,
+                              "span": "0"
+                            },
+                            "field_span": ".value"
+                          },
+                          "span": "tx.outputs[0].value"
+                        },
+                        "right": {
+                          "kind": "binary",
+                          "data": {
+                            "op": "sub",
+                            "left": {
+                              "kind": "identifier",
+                              "data": "currentValue",
+                              "span": "currentValue"
+                            },
+                            "right": {
+                              "kind": "identifier",
+                              "data": "minerFee",
+                              "span": "minerFee"
+                            }
+                          },
+                          "span": "currentValue - minerFee"
+                        }
+                      },
+                      "span": "tx.outputs[0].value == currentValue - minerFee"
+                    },
+                    "message": null,
+                    "span": "require(tx.outputs[0].value == currentValue - minerFee);",
+                    "message_span": null
+                  }
+                }
+              ],
+              "else_branch": [
+                {
+                  "kind": "require",
+                  "data": {
+                    "expr": {
+                      "kind": "binary",
+                      "data": {
+                        "op": "eq",
+                        "left": {
+                          "kind": "introspection",
+                          "data": {
+                            "kind": "output_value",
+                            "index": {
+                              "kind": "int",
+                              "data": 0,
+                              "span": "0"
+                            },
+                            "field_span": ".value"
+                          },
+                          "span": "tx.outputs[0].value"
+                        },
+                        "right": {
+                          "kind": "identifier",
+                          "data": "allowance",
+                          "span": "allowance"
+                        }
+                      },
+                      "span": "tx.outputs[0].value == allowance"
+                    },
+                    "message": null,
+                    "span": "require(tx.outputs[0].value == allowance);",
+                    "message_span": null
+                  }
+                },
+                {
+                  "kind": "require",
+                  "data": {
+                    "expr": {
+                      "kind": "binary",
+                      "data": {
+                        "op": "eq",
+                        "left": {
+                          "kind": "introspection",
+                          "data": {
+                            "kind": "output_value",
+                            "index": {
+                              "kind": "int",
+                              "data": 1,
+                              "span": "1"
+                            },
+                            "field_span": ".value"
+                          },
+                          "span": "tx.outputs[1].value"
+                        },
+                        "right": {
+                          "kind": "identifier",
+                          "data": "changeValue",
+                          "span": "changeValue"
+                        }
+                      },
+                      "span": "tx.outputs[1].value == changeValue"
+                    },
+                    "message": null,
+                    "span": "require(tx.outputs[1].value == changeValue);",
+                    "message_span": null
+                  }
+                },
+                {
+                  "kind": "variable_definition",
+                  "data": {
+                    "type_ref": {
+                      "base": "byte",
+                      "array_dims": [
+                        {
+                          "kind": "dynamic"
+                        }
+                      ]
+                    },
+                    "modifiers": [],
+                    "name": "newState",
+                    "expr": {
+                      "kind": "binary",
+                      "data": {
+                        "op": "add",
+                        "left": {
+                          "kind": "binary",
+                          "data": {
+                            "op": "add",
+                            "left": {
+                              "kind": "int",
+                              "data": 8,
+                              "span": "8 "
+                            },
+                            "right": {
+                              "kind": "call",
+                              "data": {
+                                "name": "byte[8]",
+                                "args": [
+                                  {
+                                    "kind": "nullary",
+                                    "data": "tx_lock_time",
+                                    "span": "tx.locktime"
+                                  }
+                                ],
+                                "name_span": "byte[8]"
+                              },
+                              "span": "byte[8](tx.locktime)"
+                            }
+                          },
+                          "span": "8 + byte[8](tx.locktime)"
+                        },
+                        "right": {
+                          "kind": "split",
+                          "data": {
+                            "source": {
+                              "kind": "nullary",
+                              "data": "active_script_pub_key",
+                              "span": "this.activeScriptPubKey"
+                            },
+                            "index": {
+                              "kind": "int",
+                              "data": 9,
+                              "span": "9"
+                            },
+                            "part": "right",
+                            "span": ".split(9)"
+                          },
+                          "span": "this.activeScriptPubKey.split(9).1"
+                        }
+                      },
+                      "span": "8 + byte[8](tx.locktime) + this.activeScriptPubKey.split(9).1"
+                    },
+                    "span": "byte[] newState = 8 + byte[8](tx.locktime) + this.activeScriptPubKey.split(9).1;",
+                    "type_span": "byte[]",
+                    "modifier_spans": [],
+                    "name_span": "newState"
+                  }
+                },
+                {
+                  "kind": "variable_definition",
+                  "data": {
+                    "type_ref": {
+                      "base": "byte",
+                      "array_dims": [
+                        {
+                          "kind": "fixed",
+                          "value": 35
+                        }
+                      ]
+                    },
+                    "modifiers": [],
+                    "name": "relock",
+                    "expr": {
+                      "kind": "new",
+                      "data": {
+                        "name": "ScriptPubKeyP2SH",
+                        "args": [
+                          {
+                            "kind": "call",
+                            "data": {
+                              "name": "blake2b",
+                              "args": [
+                                {
+                                  "kind": "identifier",
+                                  "data": "newState",
+                                  "span": "newState"
+                                }
+                              ],
+                              "name_span": "blake2b"
+                            },
+                            "span": "blake2b(newState)"
+                          }
+                        ],
+                        "name_span": "ScriptPubKeyP2SH"
+                      },
+                      "span": "new ScriptPubKeyP2SH(blake2b(newState))"
+                    },
+                    "span": "byte[35] relock = new ScriptPubKeyP2SH(blake2b(newState));",
+                    "type_span": "byte[35]",
+                    "modifier_spans": [],
+                    "name_span": "relock"
+                  }
+                },
+                {
+                  "kind": "require",
+                  "data": {
+                    "expr": {
+                      "kind": "binary",
+                      "data": {
+                        "op": "eq",
+                        "left": {
+                          "kind": "introspection",
+                          "data": {
+                            "kind": "output_script_pub_key",
+                            "index": {
+                              "kind": "int",
+                              "data": 1,
+                              "span": "1"
+                            },
+                            "field_span": ".scriptPubKey"
+                          },
+                          "span": "tx.outputs[1].scriptPubKey"
+                        },
+                        "right": {
+                          "kind": "call",
+                          "data": {
+                            "name": "byte[]",
+                            "args": [
+                              {
+                                "kind": "identifier",
+                                "data": "relock",
+                                "span": "relock"
+                              }
+                            ],
+                            "name_span": "byte[]"
+                          },
+                          "span": "byte[](relock)"
+                        }
+                      },
+                      "span": "tx.outputs[1].scriptPubKey == byte[](relock)"
+                    },
+                    "message": null,
+                    "span": "require(tx.outputs[1].scriptPubKey == byte[](relock));",
+                    "message_span": null
+                  }
+                }
+              ],
+              "span": "if (changeValue <= allowancePerBlock + minerFee) {\n            // Draining the last tranche: send the remainder to the agent.\n            require(tx.outputs[0].value == currentValue - minerFee);\n        } else {\n            // Draw exactly the accrued allowance; re-lock the rest to this covenant\n            // with windowStart advanced to the current block (state transition).\n            require(tx.outputs[0].value == allowance);\n            require(tx.outputs[1].value == changeValue);\n\n            byte[] newState = 8 + byte[8](tx.locktime) + this.activeScriptPubKey.split(9).1;\n            byte[35] relock = new ScriptPubKeyP2SH(blake2b(newState));\n            require(tx.outputs[1].scriptPubKey == byte[](relock));\n        }",
+              "then_span": "require(tx.outputs[0].value == currentValue - minerFee);",
+              "else_span": "require(tx.outputs[0].value == allowance);\n            require(tx.outputs[1].value == changeValue);\n\n            byte[] newState = 8 + byte[8](tx.locktime) + this.activeScriptPubKey.split(9).1;\n            byte[35] relock = new ScriptPubKeyP2SH(blake2b(newState));\n            require(tx.outputs[1].scriptPubKey == byte[](relock));"
+            }
+          }
+        ],
+        "return_type_spans": [],
+        "span": "entrypoint function draw() {\n        byte[34] agentScriptPubKey = new ScriptPubKeyP2PK(agent);\n        require(tx.outputs[0].scriptPubKey == byte[](agentScriptPubKey));\n\n        int start = int(windowStart);\n        require(tx.time >= start);\n\n        int elapsed = tx.locktime - start;\n        int allowance = elapsed * allowancePerBlock;\n\n        int minerFee = 1000;\n        int currentValue = tx.inputs[this.activeInputIndex].value;\n        int changeValue = currentValue - allowance - minerFee;\n\n        if (changeValue <= allowancePerBlock + minerFee) {\n            // Draining the last tranche: send the remainder to the agent.\n            require(tx.outputs[0].value == currentValue - minerFee);\n        } else {\n            // Draw exactly the accrued allowance; re-lock the rest to this covenant\n            // with windowStart advanced to the current block (state transition).\n            require(tx.outputs[0].value == allowance);\n            require(tx.outputs[1].value == changeValue);\n\n            byte[] newState = 8 + byte[8](tx.locktime) + this.activeScriptPubKey.split(9).1;\n            byte[35] relock = new ScriptPubKeyP2SH(blake2b(newState));\n            require(tx.outputs[1].scriptPubKey == byte[](relock));\n        }\n    }",
+        "name_span": "draw",
+        "body_span": "byte[34] agentScriptPubKey = new ScriptPubKeyP2PK(agent);\n        require(tx.outputs[0].scriptPubKey == byte[](agentScriptPubKey));\n\n        int start = int(windowStart);\n        require(tx.time >= start);\n\n        int elapsed = tx.locktime - start;\n        int allowance = elapsed * allowancePerBlock;\n\n        int minerFee = 1000;\n        int currentValue = tx.inputs[this.activeInputIndex].value;\n        int changeValue = currentValue - allowance - minerFee;\n\n        if (changeValue <= allowancePerBlock + minerFee) {\n            // Draining the last tranche: send the remainder to the agent.\n            require(tx.outputs[0].value == currentValue - minerFee);\n        } else {\n            // Draw exactly the accrued allowance; re-lock the rest to this covenant\n            // with windowStart advanced to the current block (state transition).\n            require(tx.outputs[0].value == allowance);\n            require(tx.outputs[1].value == changeValue);\n\n            byte[] newState = 8 + byte[8](tx.locktime) + this.activeScriptPubKey.split(9).1;\n            byte[35] relock = new ScriptPubKeyP2SH(blake2b(newState));\n            require(tx.outputs[1].scriptPubKey == byte[](relock));\n        }"
+      },
+      {
+        "name": "reclaim",
+        "params": [
+          {
+            "type_ref": {
+              "base": "pubkey"
+            },
+            "name": "pk",
+            "span": "pubkey pk",
+            "type_span": "pubkey ",
+            "name_span": "pk"
+          },
+          {
+            "type_ref": {
+              "base": "sig"
+            },
+            "name": "s",
+            "span": "sig s",
+            "type_span": "sig ",
+            "name_span": "s"
+          }
+        ],
+        "entrypoint": true,
+        "return_types": [],
+        "returns_tuple": false,
+        "body": [
+          {
+            "kind": "require",
+            "data": {
+              "expr": {
+                "kind": "binary",
+                "data": {
+                  "op": "eq",
+                  "left": {
+                    "kind": "call",
+                    "data": {
+                      "name": "blake2b",
+                      "args": [
+                        {
+                          "kind": "identifier",
+                          "data": "pk",
+                          "span": "pk"
+                        }
+                      ],
+                      "name_span": "blake2b"
+                    },
+                    "span": "blake2b(pk)"
+                  },
+                  "right": {
+                    "kind": "identifier",
+                    "data": "owner",
+                    "span": "owner"
+                  }
+                },
+                "span": "blake2b(pk) == owner"
+              },
+              "message": null,
+              "span": "require(blake2b(pk) == owner);",
+              "message_span": null
+            }
+          },
+          {
+            "kind": "require",
+            "data": {
+              "expr": {
+                "kind": "call",
+                "data": {
+                  "name": "checkSig",
+                  "args": [
+                    {
+                      "kind": "identifier",
+                      "data": "s",
+                      "span": "s"
+                    },
+                    {
+                      "kind": "identifier",
+                      "data": "pk",
+                      "span": "pk"
+                    }
+                  ],
+                  "name_span": "checkSig"
+                },
+                "span": "checkSig(s, pk)"
+              },
+              "message": null,
+              "span": "require(checkSig(s, pk));",
+              "message_span": null
+            }
+          }
+        ],
+        "return_type_spans": [],
+        "span": "entrypoint function reclaim(pubkey pk, sig s) {\n        require(blake2b(pk) == owner);\n        require(checkSig(s, pk));\n    }",
+        "name_span": "reclaim",
+        "body_span": "require(blake2b(pk) == owner);\n        require(checkSig(s, pk));"
+      }
+    ],
+    "span": "contract AgentAllowance(\n    pubkey agent,            // the autonomous agent that draws its allowance\n    byte[32] owner,          // human owner (blake2b of pubkey) \u2014 can reclaim anytime\n    int allowancePerBlock,   // max sompi the agent may draw per block elapsed\n    byte[8] windowStart,     // DAA score the current accrual window began (state)\n) {\n    // AUTO: the agent draws up to its accrued allowance. Change re-locks to this\n    // same covenant with windowStart advanced to now (resets the accrual).\n    entrypoint function draw() {\n        byte[34] agentScriptPubKey = new ScriptPubKeyP2PK(agent);\n        require(tx.outputs[0].scriptPubKey == byte[](agentScriptPubKey));\n\n        int start = int(windowStart);\n        require(tx.time >= start);\n\n        int elapsed = tx.locktime - start;\n        int allowance = elapsed * allowancePerBlock;\n\n        int minerFee = 1000;\n        int currentValue = tx.inputs[this.activeInputIndex].value;\n        int changeValue = currentValue - allowance - minerFee;\n\n        if (changeValue <= allowancePerBlock + minerFee) {\n            // Draining the last tranche: send the remainder to the agent.\n            require(tx.outputs[0].value == currentValue - minerFee);\n        } else {\n            // Draw exactly the accrued allowance; re-lock the rest to this covenant\n            // with windowStart advanced to the current block (state transition).\n            require(tx.outputs[0].value == allowance);\n            require(tx.outputs[1].value == changeValue);\n\n            byte[] newState = 8 + byte[8](tx.locktime) + this.activeScriptPubKey.split(9).1;\n            byte[35] relock = new ScriptPubKeyP2SH(blake2b(newState));\n            require(tx.outputs[1].scriptPubKey == byte[](relock));\n        }\n    }\n\n    // RECLAIM: the human owner takes the funds back at any time.\n    entrypoint function reclaim(pubkey pk, sig s) {\n        require(blake2b(pk) == owner);\n        require(checkSig(s, pk));\n    }\n}",
+    "name_span": "AgentAllowance"
+  },
+  "abi": [
+    {
+      "name": "draw",
+      "inputs": []
+    },
+    {
+      "name": "reclaim",
+      "inputs": [
+        {
+          "name": "pk",
+          "type_name": "pubkey"
+        },
+        {
+          "name": "s",
+          "type_name": "sig"
+        }
+      ]
+    }
+  ],
+  "without_selector": false,
+  "state_layout": {
+    "start": 1,
+    "len": 0
+  },
+  "debug_info": null
+}
