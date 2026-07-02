@@ -372,11 +372,17 @@ cargo install --git https://github.com/kaspanet/silverscript.git silverscript-la
 python -m backend.compile_covenant     # compiles + derives the P2SH vault address
 ```
 
-This is validated end-to-end through compilation: the `.sil` compiles to a real
-222-byte Kaspa script (ABI: `draw` / `reclaim`) that derives a fundable testnet-10
-P2SH address (committed artifact: `backend/covenants/rolling_vault.json`). The live
-streaming-spend flow (window/locktime accrual + change re-lock) is the natural next
-step on top of this compiled covenant.
+Validated **live on testnet-10** (`python -m backend.rolling_demo`): the `.sil`
+compiles to a real 222-byte Kaspa script (ABI: `draw` / `reclaim`), funds a P2SH
+covenant UTXO, and then:
+
+- a **reclaim with the wrong key is rejected by consensus** ⛔, and
+- the **owner's reclaim is accepted** ✅ ([tx](https://tn10.kaspa.stream/transactions/b08d95a0d8c703523031a7216c09b8bd123d38628e604839af875a4970d8d22e)) —
+
+so the compiled covenant is genuinely enforced on-chain via its authorised path.
+(The `draw` streaming-allowance path additionally needs a fee-realistic `minerFee`
+and the compiler's `validateOutputState` for the change re-lock — the documented
+next refinement on top of this working covenant.)
 
 ### Covenant-governed settlement (opt-in)
 

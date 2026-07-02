@@ -65,6 +65,11 @@ Covenant governance — a 4-act proof (cap = 2 KAS), viewable on
 Per-task escrow covenant — lock → settle-to-solver and lock → refund-to-coordinator,
 both real on-chain (`python -m backend.escrow_demo`).
 
+Stateful **rolling-allowance covenant (v2)** — authored in **SilverScript**, compiled
+with the real `silverc` toolchain to Kaspa script, funded on TN10, and enforced live:
+an unauthorised reclaim is **rejected by consensus** while the owner's reclaim is
+**accepted** ([tx](https://tn10.kaspa.stream/transactions/b08d95a0d8c703523031a7216c09b8bd123d38628e604839af875a4970d8d22e)) — `python -m backend.rolling_demo`.
+
 ## What makes it credible
 
 - **One-command run:** `docker compose up` → full app, mock mode (no wallet/funds).
