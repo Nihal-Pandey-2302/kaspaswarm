@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE } from '../utils/config';
 
 // Agent Treasury Vault — surfaces the on-chain spend-policy covenant and lets the
 // user run the live proof (accept / block / block / co-sign) on testnet-10.
@@ -21,7 +22,7 @@ export default function CovenantPanel() {
 
   const fetchStatus = async () => {
     try {
-      const r = await fetch('/api/covenant/status');
+      const r = await fetch(`${API_BASE}/api/covenant/status`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
       if (alive.current) { setStatus(d); setLoadErr(null); }
@@ -50,7 +51,7 @@ export default function CovenantPanel() {
   const runProof = async () => {
     setBusy(true);
     try {
-      const res = await fetch('/api/covenant/run', { method: 'POST' });
+      const res = await fetch(`${API_BASE}/api/covenant/run`, { method: 'POST' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await new Promise((r) => setTimeout(r, 800));
       await fetchStatus();

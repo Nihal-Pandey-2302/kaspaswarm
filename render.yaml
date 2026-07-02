@@ -1,0 +1,34 @@
+# Render Blueprint — one-click deploy of the KaspaSwarm backend in MOCK mode.
+#
+# In the Render dashboard: New > Blueprint > point at this repo. It provisions the
+# FastAPI backend (Docker) in MOCK mode: full coordination API + WebSocket, real tx
+# encoding, but NO real transactions — no wallet, no funds, safe to leave running
+# 24/7 (Render free-tier sleep is harmless; it cold-starts on the next request).
+#
+# The dashboard (frontend) is a static site — host it on Vercel/Netlify (or via the
+# Docker compose stack) and set its VITE_API_URL to this backend's URL.
+#
+# To run this backend LIVE on testnet-10, set MOCK_MODE=false and add
+# COORDINATOR_ADDRESS / COORDINATOR_PRIVATE_KEY / AGENT_MASTER_SEED (+ optional
+# LLM_* , COVENANT_ESCROW) as secret env vars. The swarm pauses auto task-generation
+# whenever no dashboard is connected, so an idle instance won't burn funds.
+services:
+  - type: web
+    name: kaspaswarm-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: MOCK_MODE
+        value: "true"
+      - key: KASPA_NETWORK
+        value: testnet-10
+      - key: KASPA_NETWORK_ID
+        value: testnet-10
+      - key: NUM_COORDINATORS
+        value: "2"
+      - key: NUM_SOLVERS
+        value: "8"

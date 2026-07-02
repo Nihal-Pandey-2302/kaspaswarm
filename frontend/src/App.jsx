@@ -36,7 +36,7 @@ function App() {
                 background: isLive ? 'rgba(0,255,136,0.10)' : 'rgba(255,170,0,0.10)',
               }}
             >
-              {(swarmData?.mode || 'mock').toUpperCase()}
+              {isLive ? '🟢 LIVE · TN10' : '🟡 SIMULATION'}
             </span>
           </div>
           <span style={styles.brandTag}>Decentralized AI Coordination</span>

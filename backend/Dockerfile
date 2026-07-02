@@ -19,4 +19,5 @@ ENV PYTHONUNBUFFERED=1 \
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "backend.api.websocket:app", "--host", "0.0.0.0", "--port", "8000"]
+# Bind Render's injected $PORT if present, else 8000 (docker-compose / local).
+CMD ["sh", "-c", "python -m uvicorn backend.api.websocket:app --host 0.0.0.0 --port ${PORT:-8000}"]
