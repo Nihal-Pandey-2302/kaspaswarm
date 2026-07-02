@@ -1,6 +1,7 @@
 # KaspaSwarm 🐝⚡
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![CI](https://github.com/Nihal-Pandey-2302/kaspaswarm/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![React](https://img.shields.io/badge/react-18+-blue.svg)
 ![Kaspa](https://img.shields.io/badge/Kaspa-Testnet_10-70C7BA.svg)
