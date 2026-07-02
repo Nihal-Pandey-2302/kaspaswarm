@@ -40,14 +40,22 @@ class ConnectionManager:
     
     def __init__(self):
         self.active_connections: List[WebSocket] = []
-    
+        self.orchestrator = None  # set at startup; used to publish the viewer count
+
+    def _publish_count(self):
+        if self.orchestrator is not None:
+            self.orchestrator.active_clients = len(self.active_connections)
+
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        self._publish_count()
         print(f"🔌 WebSocket client connected (total: {len(self.active_connections)})")
-    
+
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        self._publish_count()
         print(f"🔌 WebSocket client disconnected (total: {len(self.active_connections)})")
     
     async def broadcast(self, message: str):
@@ -137,7 +145,11 @@ async def startup():
     )
     
     await orchestrator.initialize_swarm()
-    
+
+    # Let the connection manager publish the live viewer count to the orchestrator
+    # (used to pause fund-spending task generation when no one is watching).
+    manager.orchestrator = orchestrator
+
     # Start swarm in background
     asyncio.create_task(orchestrator.start_swarm())
     

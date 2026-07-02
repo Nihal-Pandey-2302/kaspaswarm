@@ -52,6 +52,13 @@ class CoordinatorAgent(BaseAgent):
             if self.paused:
                 continue
 
+            # Live mode: don't auto-generate tasks (real on-chain spends) when no
+            # dashboard is connected — protects funds on an idle public deployment.
+            # Mock mode always runs so the demo is lively without a viewer.
+            if (self.orchestrator and not self.orchestrator.mock_mode
+                    and getattr(self.orchestrator, "active_clients", 0) == 0):
+                continue
+
             # Generate new task
             task = self.generate_task()
             self.active_tasks[task.task_id] = task

@@ -1,9 +1,35 @@
 # Deployment Guide 🚀
 
-KaspaSwarm consists of two distinct components that need to be deployed separately:
+## Fastest path: Docker (local / evaluation)
+
+```bash
+docker compose up --build      # open http://localhost:8080
+```
+
+One command, no Python/Node/wallet. Defaults to **MOCK mode** (no real
+transactions, runs indefinitely). To run live, add a `.env` (see `.env.example`)
+with `MOCK_MODE=false` + coordinator keys — `docker compose` reads it
+automatically and secrets are never baked into the image. See the README
+"One-step run (Docker)" section.
+
+## Split deployment (public hosting)
+
+KaspaSwarm consists of two distinct components that can be deployed separately:
 
 1.  **Frontend**: A React application (deployed to Vercel/Netlify)
 2.  **Backend**: A Python agent swarm (deployed to Render/Railway/VPS)
+
+> **💸 IMPORTANT — funds & always-on hosting.** In **live** mode every task is a real
+> testnet transaction, so a 24/7 instance would drain the coordinator wallet. Two
+> safeguards/recommendations:
+> - **Public demo → deploy in MOCK mode** (`MOCK_MODE=true`): full UX, zero funds,
+>   and Render free-tier sleep (~15 min idle) is harmless — it just cold-starts on
+>   the next visit (~30–60s).
+> - **Live demo →** KaspaSwarm **pauses auto task-generation whenever no dashboard
+>   is connected**, so an idle instance (or one Render has put to sleep) does not
+>   spend. Keep the wallet topped up from the faucet and only expect spending while
+>   someone is actively watching. The covenant "Run on-chain proof" button and
+>   `COVENANT_ESCROW` also spend real funds — use them deliberately, not on a loop.
 
 > **ℹ️ Note on Kaspa connectivity**
 > The default `sdk` transport connects to `testnet-10` through the **community-node

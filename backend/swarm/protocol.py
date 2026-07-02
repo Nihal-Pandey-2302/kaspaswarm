@@ -42,6 +42,10 @@ class SwarmOrchestrator:
         self.num_coordinators = num_coordinators
         self.num_solvers = num_solvers
         self.mock_mode = mock_mode
+        # Number of connected dashboards. In live mode the coordinator pauses
+        # auto task-generation when this is 0, so an idle public deployment does
+        # not burn real funds on transactions nobody is watching.
+        self.active_clients = 0
         self.running = False
         self.transaction_history = deque(maxlen=30)  # Last 30 transactions
         self.task_history: List[Dict] = []  # Recent tasks (bounded by max_task_history)

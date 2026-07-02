@@ -255,6 +255,32 @@ npm install
 npm run dev
 ```
 
+## 🐳 One-step run (Docker)
+
+The fastest way to try KaspaSwarm — no Python/Node setup, no wallet, no keys:
+
+```bash
+docker compose up --build      # then open http://localhost:8080
+```
+
+This runs the backend + an nginx-served frontend (which reverse-proxies `/api`
+and `/ws`). It defaults to **MOCK mode**: the full coordination UX with real
+transaction *encoding* but **no real transactions** — so it needs no funds and
+runs indefinitely. Perfect for a quick evaluation.
+
+**To run it live on testnet-10** (real on-chain txns), create a `.env` in the repo
+root (see [.env.example](.env.example)) with `MOCK_MODE=false` +
+`COORDINATOR_ADDRESS` / `COORDINATOR_PRIVATE_KEY` / `AGENT_MASTER_SEED` (and
+optional `LLM_*`, `COVENANT_ESCROW`). `docker compose` reads it automatically.
+Secrets are passed at runtime only — they are never baked into the image
+(`.env` is in `.dockerignore`).
+
+> **💸 Funds & idle protection:** in live mode every task is a real transaction, so
+> a 24/7 instance would drain the wallet. KaspaSwarm **pauses auto task-generation
+> in live mode whenever no dashboard is connected** — so an idle/unwatched
+> deployment doesn't spend. For a public, always-on demo, prefer **MOCK mode**
+> (zero funds); use live for a watched walkthrough.
+
 ## 🔌 MCP — Hire the Swarm from Any AI Agent
 
 KaspaSwarm ships an [MCP](https://modelcontextprotocol.io) server

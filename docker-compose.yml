@@ -1,0 +1,43 @@
+# KaspaSwarm — one-step local run.
+#
+#   docker compose up --build      # then open http://localhost:8080
+#
+# Defaults to MOCK mode: full coordination UX, real tx encoding, but NO real
+# transactions — so it needs no wallet, no keys, no funds, and runs indefinitely.
+#
+# To run LIVE on testnet-10 (real on-chain txns), create a .env file in this
+# directory (see .env.example) with MOCK_MODE=false + COORDINATOR_ADDRESS /
+# COORDINATOR_PRIVATE_KEY / AGENT_MASTER_SEED (+ optional LLM_* and
+# COVENANT_ESCROW). docker compose reads that .env automatically.
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      - MOCK_MODE=${MOCK_MODE:-true}
+      - KASPA_NETWORK=${KASPA_NETWORK:-testnet-10}
+      - KASPA_NETWORK_ID=${KASPA_NETWORK_ID:-testnet-10}
+      - KASPA_TRANSPORT=${KASPA_TRANSPORT:-sdk}
+      - NUM_COORDINATORS=${NUM_COORDINATORS:-2}
+      - NUM_SOLVERS=${NUM_SOLVERS:-8}
+      - COORDINATOR_ADDRESS=${COORDINATOR_ADDRESS:-}
+      - COORDINATOR_PRIVATE_KEY=${COORDINATOR_PRIVATE_KEY:-}
+      - AGENT_MASTER_SEED=${AGENT_MASTER_SEED:-}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - COVENANT_ESCROW=${COVENANT_ESCROW:-false}
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
