@@ -101,7 +101,10 @@ const OnChainFeed = ({ transactions, mode }) => {
 const styles = {
   container: {
     width: '100%',
-    maxHeight: 'calc(100vh - 32px)',
+    // Fill the remaining rail space (below CovenantPanel) rather than the whole
+    // viewport, so the rail has one scrollbar instead of a nested double-scroll.
+    flex: 1,
+    minHeight: '260px',
     background: 'rgba(17, 19, 24, 0.92)',
     backdropFilter: 'blur(12px)',
     border: '1px solid rgba(255, 255, 255, 0.10)',

@@ -15,31 +15,34 @@ const short = (a) => (a && a.length > 22 ? `${a.slice(0, 14)}…${a.slice(-6)}` 
 export default function CovenantPanel() {
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [loadErr, setLoadErr] = useState(null);
   const pollRef = useRef(null);
+  const alive = useRef(true);
 
   const fetchStatus = async () => {
     try {
       const r = await fetch('/api/covenant/status');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
-      setStatus(d);
+      if (alive.current) { setStatus(d); setLoadErr(null); }
       return d;
     } catch {
+      if (alive.current) setLoadErr('Could not load covenant status');
       return null;
     }
   };
 
   useEffect(() => {
+    alive.current = true;
     fetchStatus();
-    return () => clearInterval(pollRef.current);
+    return () => { alive.current = false; clearInterval(pollRef.current); };
   }, []);
 
   // Poll while a run is in progress.
   useEffect(() => {
+    clearInterval(pollRef.current);
     if (status?.running) {
-      clearInterval(pollRef.current);
       pollRef.current = setInterval(fetchStatus, 2500);
-    } else {
-      clearInterval(pollRef.current);
     }
     return () => clearInterval(pollRef.current);
   }, [status?.running]);
@@ -47,15 +50,25 @@ export default function CovenantPanel() {
   const runProof = async () => {
     setBusy(true);
     try {
-      await fetch('/api/covenant/run', { method: 'POST' });
-      await new Promise((r) => setTimeout(r, 500));
+      const res = await fetch('/api/covenant/run', { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await new Promise((r) => setTimeout(r, 800));
       await fetchStatus();
+    } catch {
+      if (alive.current) setLoadErr('Failed to start proof');
     } finally {
-      setBusy(false);
+      if (alive.current) setBusy(false);
     }
   };
 
-  if (!status) return null;
+  if (!status) {
+    return (
+      <div style={styles.card} className="ks-card">
+        <div style={styles.header}>🛡️ Agent Treasury Vault</div>
+        <div style={styles.muted}>{loadErr || 'Loading covenant status…'}</div>
+      </div>
+    );
+  }
 
   if (!status.configured) {
     return (
@@ -91,6 +104,7 @@ export default function CovenantPanel() {
       <button
         onClick={runProof}
         disabled={busy || running}
+        aria-busy={busy || running}
         className="ks-btn"
         style={{ ...styles.btn, opacity: busy || running ? 0.6 : 1 }}
       >
@@ -119,6 +133,7 @@ export default function CovenantPanel() {
         </div>
       )}
       {status.error && <div style={styles.err}>⚠ {status.error}</div>}
+      {loadErr && <div style={styles.err}>⚠ {loadErr}</div>}
     </div>
   );
 }
